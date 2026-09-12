@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "kind": "platform",
+  "id": "esp32p4",
+  "idf_versions": [
+    "5.5.3"
+  ],
+  "sources": [
+    "ports/pattern.c"
+  ],
+  "include_dirs": [
+    "ports",
+    "../common/include"
+  ]
+}

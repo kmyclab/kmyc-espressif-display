@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "kind": "app",
+  "id": "panel-test",
+  "targets": [
+    "esp32p4"
+  ],
+  "requires": [
+    "panel-bist",
+    "dsi-pattern"
+  ],
+  "default_preset": "wireless-p4-d101-panel-test",
+  "status": "experimental"
+}

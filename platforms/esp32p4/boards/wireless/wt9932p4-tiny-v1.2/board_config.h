@@ -1,0 +1,4 @@
+#pragma once
+
+#define KMYC_DSI_PHY_LDO_CHANNEL 3
+#define KMYC_DSI_PHY_LDO_VOLTAGE_MV 2500

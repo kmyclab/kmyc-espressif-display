@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "kind": "touch",
+  "model": "KMYC-T101-CTP-I2C-GT9271-G01-A1",
+  "version": "0.1.0",
+  "controller": "GT9271",
+  "status": "metadata-only",
+  "implementation": null
+}

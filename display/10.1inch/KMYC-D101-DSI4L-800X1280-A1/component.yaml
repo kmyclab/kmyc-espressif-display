@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "kind": "display",
+  "model": "KMYC-D101-DSI4L-800X1280-A1",
+  "version": "0.1.0",
+  "vendor_panel": "CC10128007-31C",
+  "controller": "ILI9881C",
+  "interface": {
+    "type": "mipi-dsi",
+    "product_lanes": 4
+  },
+  "modes": [
+    {
+      "id": "dsi2-800mbps-71mhz-experimental",
+      "lanes": 2,
+      "status": "experimental"
+    }
+  ],
+  "sources": [
+    "driver/panel_cc10128007_31c.c"
+  ],
+  "include_dirs": [
+    "driver"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "kind": "board",
+  "id": "wireless-wt9932p4-tiny-v1.2",
+  "manufacturer": "wireless",
+  "manufacturer_name": "启明云端",
+  "model": "WT9932P4-TINY_1V2",
+  "target": "esp32p4",
+  "status": "experimental",
+  "sources": [
+    "board.c"
+  ],
+  "include_dirs": [
+    "."
+  ],
+  "required_config": {
+    "CONFIG_ESP32P4_SELECTS_REV_LESS_V3": "y",
+    "CONFIG_ESP32P4_REV_MIN_100": "y",
+    "CONFIG_ESPTOOLPY_FLASHSIZE_16MB": "y",
+    "CONFIG_SPIRAM": "y",
+    "CONFIG_SPIRAM_SPEED_200M": "y"
+  }
+}

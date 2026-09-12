@@ -1,0 +1,15 @@
+menu "KMYC panel test"
+
+config KMYC_PANEL_INTERNAL_BIST
+    bool "Use panel-internal BIST (DPI video stays off)"
+    default y
+    help
+        Preserve the original diagnostic baseline. Disable only when testing
+        the ESP32 hardware color bars. Neither mode implies visual validation.
+
+config KMYC_PATTERN_PERIOD_MS
+    int "Heartbeat / pattern interval (milliseconds)"
+    range 100 60000
+    default 2000
+
+endmenu
