@@ -1,0 +1,4 @@
+# Use the ESP32-P4 DPI hardware pattern generator to validate the complete
+# DSI video path. Panel-internal BIST remains available through the panel presets.
+# CONFIG_KMYC_PANEL_INTERNAL_BIST is not set
+CONFIG_KMYC_PATTERN_PERIOD_MS=2000

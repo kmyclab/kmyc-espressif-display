@@ -1,7 +1,9 @@
 """Hardware-independent checks of the catalog/build contract."""
 
 import copy
+import contextlib
 import importlib.util
+import io
 from pathlib import Path
 import shutil
 import tempfile
@@ -12,6 +14,10 @@ SPEC = importlib.util.spec_from_file_location("kmyc", ROOT / "tools/kmyc.py")
 kmyc = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(kmyc)
 PRESET = "wireless-p4-d101-panel-test"
+WAVESHARE_PRESET = "waveshare-pico-r3-d101-bist"
+WAVESHARE_PANEL_PRESET = "waveshare-pico-r1-d101-panel"
+WAVESHARE_TOUCH_PRESET = "waveshare-pico-r1-d101-touch"
+D070_TOUCH_PRESET = "waveshare-pico-r1-d070-touch"
 
 
 class WorkspaceTests(unittest.TestCase):
@@ -28,6 +34,87 @@ class WorkspaceTests(unittest.TestCase):
         self.assertIsNone(selected["preset"]["assembly"])
         self.assertTrue(kmyc.source_paths(ROOT, selected, "sources"))
 
+    def test_waveshare_pico_uses_selected_silicon_profile(self):
+        preset = copy.deepcopy(self.data["preset"][WAVESHARE_PRESET])
+        selected = kmyc.resolve(self.data, preset)
+        self.assertEqual(selected["board"]["manufacturer"], "waveshare")
+        self.assertEqual(selected["board"]["model"], "ESP32-P4-Pico")
+        self.assertEqual(preset["board_profile"], "rev3_x")
+        defaults = kmyc.default_files(ROOT, selected)
+        self.assertTrue(any(path.name == "sdkconfig.rev3_x.defaults" for path in defaults))
+
+    def test_waveshare_pico_requires_known_silicon_profile(self):
+        preset = copy.deepcopy(self.data["preset"][WAVESHARE_PRESET])
+        preset.pop("board_profile")
+        with self.assertRaisesRegex(ValueError, "board_profile"):
+            kmyc.resolve(self.data, preset)
+
+    def test_preset_can_select_a_diagnostic_config(self):
+        preset = copy.deepcopy(self.data["preset"][WAVESHARE_PANEL_PRESET])
+        selected = kmyc.resolve(self.data, preset)
+        defaults = kmyc.default_files(ROOT, selected)
+        self.assertEqual(defaults[-1].name, "waveshare-hw-colorbar.defaults")
+        self.assertEqual(preset["required_config"]["CONFIG_KMYC_PANEL_INTERNAL_BIST"], "n")
+
+    def test_touch_app_selects_implemented_assembly_and_own_main(self):
+        preset = copy.deepcopy(self.data["preset"][WAVESHARE_TOUCH_PRESET])
+        selected = kmyc.resolve(self.data, preset)
+        self.assertEqual(selected["touch"]["controller"], "GT9271")
+        self.assertEqual(selected["assembly"]["model"], preset["assembly"])
+        self.assertIn("rgb888-draw", selected["app"]["requires"])
+        self.assertIn("rgb888-draw", selected["adapter"]["capabilities"])
+        self.assertIn("touch-poll", selected["adapter"]["capabilities"])
+        self.assertTrue(kmyc.source_paths(ROOT, selected, "sources", ("touch",)))
+        self.assertTrue((ROOT / "apps/touch-test/main/main.c").is_file())
+        preset["board_profile"] = "unknown"
+        with self.assertRaisesRegex(ValueError, "board_profile"):
+            kmyc.resolve(self.data, preset)
+
+    def test_standalone_touch_does_not_invent_an_assembly(self):
+        preset = copy.deepcopy(self.data["preset"][D070_TOUCH_PRESET])
+        selected = kmyc.resolve(self.data, preset)
+        self.assertNotIn("assembly", selected)
+        self.assertEqual(selected["display"]["controller"], "JD9165BA")
+        self.assertEqual(selected["touch"]["controller"], "GT911")
+        self.assertEqual(selected["adapter"]["mode"], "dsi2-750mbps-51mhz")
+
+    def test_preset_list_is_human_readable(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            kmyc.print_preset_list(self.data)
+        text = output.getvalue()
+        self.assertIn("waveshare-pico-r1-d070-touch", text)
+        self.assertIn("App: touch-test", text)
+        self.assertIn("Board: waveshare ESP32-P4-Pico (rev1_3)", text)
+        self.assertIn("Touch: KMYC-T101-CTP-I2C-GT9271-G01-A1", text)
+
+    def test_catalog_does_not_duplicate_compatibility_status(self):
+        def check(value):
+            if isinstance(value, dict):
+                self.assertNotIn("status", value)
+                for child in value.values():
+                    check(child)
+            elif isinstance(value, list):
+                for child in value:
+                    check(child)
+            elif isinstance(value, str):
+                self.assertNotIn("experimental", value.lower())
+
+        check(self.data)
+        self.assertTrue((ROOT / "docs/hardware-support.md").is_file())
+
+    def test_rev3_profile_accepts_kconfig_unset_syntax(self):
+        preset = copy.deepcopy(self.data["preset"][WAVESHARE_PRESET])
+        selected = kmyc.resolve(self.data, preset)
+        required = dict(selected["board"]["required_config"])
+        required.update(selected["board"]["_selected_profile"]["required_config"])
+        with tempfile.TemporaryDirectory(prefix="kmyc-rev3-") as directory:
+            path = Path(directory) / "sdkconfig"
+            lines = ['CONFIG_IDF_TARGET="esp32p4"']
+            for key, value in required.items():
+                lines.append(f"# {key} is not set" if value == "n" else f"{key}={value}")
+            path.write_text("\n".join(lines), encoding="utf-8")
+            kmyc.verify_sdkconfig(selected, path)
     def test_unimplemented_app_is_not_silently_substituted(self):
         self.preset["app"] = "lvgl-demo"
         with self.assertRaisesRegex(ValueError, "not implemented app"):

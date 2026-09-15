@@ -1,58 +1,70 @@
-# 架构与配置来源
+# 工程结构
 
-本工作区由多个独立 C ESP-IDF App 组成，每个 App 自有 main/main.c。
-无顶层 main，无按芯片复制 App 的完整工程。共享产品保持完整 KMYC 型号。
-platforms/<idf_target>/ 隔离芯片实现，boards/ 隔离厂家、板型和修订。
+这套结构让 App、开发板和屏幕独立演进：增加测试程序时不复制驱动，增加开发板时
+不复制 App，增加屏幕时不把型号判断堆进 `main.c`。
 
-## 当前依赖方向
+## 目录职责
 
-panel-test → kmyc_display 公共诊断接口 → 选定 Adapter →
-板级供电 / P4 外设实现 / KMYC 显示产品驱动。
+```text
+kmyc-display/
+├── apps/          可独立编译的 C 应用，每个应用有自己的 main/main.c
+├── components/    App 使用的公共显示和触摸接口
+├── display/       显示产品身份、参数和驱动
+├── touch/         触摸产品身份、参数和驱动
+├── assembly/      显示与触摸总成的组成关系
+├── platforms/     芯片、开发板、外设实现和物理连接适配
+├── presets/       可以直接检查和编译的完整组合
+├── tools/         选择、检查和构建工具
+├── tests/         不依赖实物的工程检查
+└── docs/          上手、支持、测试和设计文档
+```
 
-应用不得直接包含产品私有头文件或访问 GPIO/芯片 HAL。
-当前接口只覆盖单显示、单任务拥有的诊断能力，初始化失败后重启。
-新增 LVGL/USB 时再定义帧缓冲所有权、完成通知、并发和销毁契约；
-不要把诊断接口误认为已具备通用绘制或传输功能。
+## 一次构建如何组成
 
-## 唯一来源
+```text
+Preset
+├── App：要运行的功能
+├── Board + profile：开发板和不可混用的芯片配置
+├── Display + 可选 Touch / Assembly：显示、独立触摸或已登记总成
+├── Adapter：该开发板与产品的实际接线和参数
+└── ESP-IDF：已登记的 SDK 版本
+```
 
-- app.json：App target 范围、所需能力、默认 preset。
-- platform.json：支持的 SDK 版本及平台公共源文件。
-- board.json：厂家、原始型号、target、板级源文件和必要配置约束。
-- display/touch 的 component.yaml：产品型号及对应软件实现。
-- assembly.yaml：显示、触摸、贴合方式引用，不复制驱动。
-- adapter.json：具体板卡、显示模式、总成范围、能力与连接实现。
-- presets/*.json：选择上述 ID；不重复维护引脚、命令表或产品数据。
-- sdkconfig.defaults：依次加载公共、芯片、板级、App 默认配置。
-- Kconfig：当前 App 的功能选项。
-- out/<preset>/sdkconfig：此次构建的有效配置；默认文件不覆盖已有值。
+App 只调用公共显示/触摸接口。Adapter 提供 lane、GPIO、复位、背光和触摸坐标
+变换；产品驱动负责 ILI9881C、GT9271 等器件本身。芯片 HAL 和 GPIO 不进入 App。
 
-.yaml 采用 JSON 子集，与现有 Raspberry Pi 产品目录一致。Python 标准库即可
-解析。产品 VERSION/CHANGELOG 独立管理 ESP-IDF 软件版本；不重命名硬件型号。
+## 为什么 App 各自有 main
 
-描述文件保存源文件清单，由 tools/kmyc.py 生成 selection.cmake，
-components/kmyc_display/CMakeLists.txt 编译选定源码。没有重复的板型分支表。
-显示产品通过 driver/kmyc_panel/ 暴露短名称 IDF 组件，由该处的
-idf_component.yml 声明供应商驱动依赖；App 不绑定 ILI9881C。
-更换显示实现无需编辑 App 的供应商依赖。本轮只支持一次选定一个显示。
-当前菜单选择入口是 tools/kmyc.py select；仅展示已有 preset 的兼容组合，
-而非无条件允许任意笛卡尔积。IDF menuconfig 用于已选组合的功能参数。
+`apps/<app>/` 是完整的 ESP-IDF 工程，拥有自己的 `CMakeLists.txt` 和
+`main/main.c`。目前有：
 
-## 构建隔离
+- `panel-test`：面板 BIST 和 ESP32-P4 硬件彩条。
+- `touch-test`：RGB888 测试画面、单点和多点触摸。
 
-每个 preset 固定 App、SDK、target、板卡、显示、Adapter。
-输出在 out/<preset>/，包括独立 sdkconfig、build、generated 和 build-info。
-更改配置配方且已有 sdkconfig 时拒绝继续，提示新建 preset 或归档旧输出，
-避免默认配置看似更新、实际继续使用旧值。
+未来的 LVGL、USB 副屏和量产测试也应建立独立 App，共用已有公共组件。这样客户
+拿到某个 App 时入口明确，不需要从一个大型 `main` 中关闭无关功能。
 
-每个 App 的 dependencies.lock 由组件管理器维护。当前只接入 P4/5.5.3。
-新增 target/SDK 前必须建立相应锁文件选择和 managed_components 隔离机制，
-不能让不同 target/SDK 并发重写同一个 App 的依赖状态。
-同一 preset 不支持并发构建。out 隔离本身不等于全部依赖已隔离。
+## 配置文件
 
-## 支持边界
+| 文件 | 说明 |
+| --- | --- |
+| `app.json` | App 支持的芯片和所需能力 |
+| `board.json` | 开发板、芯片 profile、存储器和板级源码 |
+| `component.yaml` | 显示或触摸产品规格与实现 |
+| `assembly.yaml` | 显示和触摸产品的组成关系 |
+| `adapter.json` | 开发板与产品的连接、参数和能力 |
+| `presets/*.json` | 可构建的 App + 硬件 + SDK 组合 |
 
-现有 D 产品编号保留 DSI4L；当前 Adapter 采用原工程两 lane 实验模式。
-元数据兼容、编译通过、串口正常、目视正常、完整冷启动通过分别记录。
-GT9271/OCA 总成只有身份登记；微雪、S3、S31、LVGL、USB App 尚未实现。
-新增实现时才进入可构建目录索引，README 规划目录不表示支持。
+工程调试时，preset 可以直接组合显示产品和独立触摸产品；只有贴合方式、玻璃结构
+和硬件修订已经确认后，才登记为总成。不能为了让代码通过而虚构 `DT` 型号。
+
+这些 `.yaml` 使用 JSON 语法子集，工具运行不依赖额外 YAML 包。只有已实现且能够
+构建的组合才进入 preset；目录中不会用空文件表示“未来支持”。
+
+## 当前接口边界
+
+公共接口已覆盖显示初始化、RGB888 区域绘制和轮询触摸。接入 LVGL、USB 或多任务
+并发前，还需要明确帧缓冲所有权、同步和释放规则；多个设备共用 I2C 时也应由统一
+总线管理层协调，而不是让单个驱动独占总线。
+
+具体扩展步骤见[参与贡献](../CONTRIBUTING.md)。

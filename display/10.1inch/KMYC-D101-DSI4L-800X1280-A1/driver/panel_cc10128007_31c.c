@@ -4,6 +4,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "kmyc_panel_product.h"
 #include "panel_cc10128007_31c.h"
 
 #define CMD1(command, value) \
@@ -289,4 +290,19 @@ esp_err_t cc10128007_31c_enable_bist(esp_lcd_panel_io_handle_t io)
     vTaskDelay(pdMS_TO_TICKS(20));
     ESP_LOGI(TAG, "Controller BIST enabled");
     return ESP_OK;
+}
+
+esp_err_t kmyc_panel_product_initialize(esp_lcd_panel_io_handle_t io,
+                                        int active_lanes)
+{
+    if (active_lanes != 2) {
+        ESP_LOGE(TAG, "The published CC10128007-31C sequence requires 2 active lanes");
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    return cc10128007_31c_initialize(io);
+}
+
+esp_err_t kmyc_panel_product_enable_bist(esp_lcd_panel_io_handle_t io)
+{
+    return cc10128007_31c_enable_bist(io);
 }

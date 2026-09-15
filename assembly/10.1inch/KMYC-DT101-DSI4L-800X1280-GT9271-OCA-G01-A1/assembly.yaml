@@ -2,9 +2,8 @@
   "schema": 1,
   "kind": "assembly",
   "model": "KMYC-DT101-DSI4L-800X1280-GT9271-OCA-G01-A1",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "display": "KMYC-D101-DSI4L-800X1280-A1",
   "touch": "KMYC-T101-CTP-I2C-GT9271-G01-A1",
-  "bonding": "OCA",
-  "status": "metadata-only"
+  "bonding": "OCA"
 }

@@ -11,9 +11,16 @@
   },
   "modes": [
     {
-      "id": "dsi2-800mbps-71mhz-experimental",
+      "id": "dsi2-800mbps-71mhz",
       "lanes": 2,
-      "status": "experimental"
+      "lane_bit_rate_mbps": 800,
+      "pixel_clock_mhz": 71
+    },
+    {
+      "id": "dsi2-1000mbps-71mhz",
+      "lanes": 2,
+      "lane_bit_rate_mbps": 1000,
+      "pixel_clock_mhz": 71
     }
   ],
   "sources": [

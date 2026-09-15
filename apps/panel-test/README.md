@@ -1,19 +1,20 @@
-# panel-test
+# panel-test 显示测试
 
-独立 C ESP-IDF 工程；自己的 main/main.c 定义 app_main()。
-应用仅调用 kmyc_display 诊断接口，不包含 GPIO、DSI HAL 或供应商初始化表。
+独立的 C 语言 ESP-IDF 应用，用于检查面板初始化和显示链路，不包含触摸功能。
 
-默认 preset：wireless-p4-d101-panel-test；ESP-IDF 5.5.3。
-默认 CONFIG_KMYC_PANEL_INTERNAL_BIST=y，保持迁移前屏内 BIST 行为。
-关闭该选项才启动 DPI 视频并每两秒交替输出横向/纵向硬件色条。
-名义刷新率只是时序计算值，BIST 模式不代表主控正在输出该帧率。
+| 模式 | 用途 | Waveshare v1.x preset |
+| --- | --- | --- |
+| 面板内部 BIST | 快速检查支持 BIST 的面板控制器 | `waveshare-pico-r1-d101-bist` |
+| ESP32-P4 彩条 | 检查 10.1 寸完整 DSI 视频路径 | `waveshare-pico-r1-d101-panel` |
+| ESP32-P4 彩条 | 检查 7 寸完整 DSI 视频路径 | `waveshare-pico-r1-d070-panel` |
 
-可以从本 App 目录使用标准 ESP-IDF 命令，无需把 App 放入统一 main：
+从仓库根目录构建和烧录，例如：
 
-```powershell
-idf.py -B ../../out/wireless-p4-d101-panel-test/build build
-idf.py -B ../../out/wireless-p4-d101-panel-test/build menuconfig
+```sh
+python tools/kmyc.py build --preset waveshare-pico-r1-d070-panel
+idf.py -C apps/panel-test -B out/waveshare-pico-r1-d070-panel/build -p <PORT> flash monitor
 ```
 
-CMake 会从 app.json 读取默认 preset，使用外部产品/平台源码组件。
-开发工作区可直接构建；尚不是可拷贝出工作区的客户独立交付包。
+其他开发板和芯片版本见[硬件支持](../../docs/hardware-support.md)。串口运行正常不
+代表显示通过，请按[测试方法](../../docs/testing.md)目视确认颜色、方向、边界和
+稳定性。

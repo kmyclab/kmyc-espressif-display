@@ -18,9 +18,6 @@ extern "C" {
 #define CC10128007_31C_VBP                16
 #define CC10128007_31C_VFP                15
 #define CC10128007_31C_DPI_CLOCK_MHZ      71
-#define CC10128007_31C_DSI_LANE_NUM       2
-#define CC10128007_31C_LANE_BITRATE_MBPS  800
-
 const ili9881c_lcd_init_cmd_t *cc10128007_31c_get_init_commands(size_t *command_count);
 esp_err_t cc10128007_31c_initialize(esp_lcd_panel_io_handle_t io);
 esp_err_t cc10128007_31c_enable_bist(esp_lcd_panel_io_handle_t io);

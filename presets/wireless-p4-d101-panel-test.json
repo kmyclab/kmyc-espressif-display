@@ -6,7 +6,9 @@
   "board": "wireless-wt9932p4-tiny-v1.2",
   "display": "KMYC-D101-DSI4L-800X1280-A1",
   "assembly": null,
-  "adapter": "wireless-tiny-d101-dsi2-experimental",
+  "adapter": "wireless-tiny-d101-dsi2",
   "idf": "5.5.3",
-  "status": "experimental"
+  "requires": [
+    "panel-bist"
+  ]
 }

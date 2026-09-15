@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "kind": "touch",
+  "model": "KMYC-T070-CTP-I2C-GT911-G01-A1",
+  "version": "0.1.0",
+  "controller": "GT911",
+  "native_coordinates": {
+    "width": 1024,
+    "height": 600,
+    "max_touches": 5
+  },
+  "implementation": "esp-idf-polling",
+  "sources": [
+    "driver/gt911_touch.c"
+  ],
+  "include_dirs": [
+    "driver"
+  ]
+}

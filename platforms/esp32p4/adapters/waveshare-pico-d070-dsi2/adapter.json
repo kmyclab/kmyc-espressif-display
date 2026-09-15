@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "kind": "adapter",
+  "id": "waveshare-pico-d070-dsi2",
+  "target": "esp32p4",
+  "board": "waveshare-esp32-p4-pico",
+  "display": "KMYC-D070-DSI4L-1024X600-A1",
+  "mode": "dsi2-750mbps-51mhz",
+  "assemblies": [],
+  "touches": [
+    "KMYC-T070-CTP-I2C-GT911-G01-A1"
+  ],
+  "capabilities": [
+    "dsi-pattern",
+    "rgb888-draw",
+    "touch-poll"
+  ],
+  "physical_adapter_model": null,
+  "sources": [
+    "../common/dsi2_diagnostic.c"
+  ],
+  "include_dirs": [
+    "."
+  ],
+  "touch_include_dirs": [
+    "."
+  ]
+}

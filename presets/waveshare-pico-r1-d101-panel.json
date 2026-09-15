@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "kind": "preset",
+  "id": "waveshare-pico-r1-d101-panel",
+  "app": "panel-test",
+  "board": "waveshare-esp32-p4-pico",
+  "board_profile": "rev1_3",
+  "display": "KMYC-D101-DSI4L-800X1280-A1",
+  "assembly": null,
+  "adapter": "waveshare-pico-d101-dsi2",
+  "idf": "5.5.3",
+  "requires": [
+    "dsi-pattern"
+  ],
+  "sdkconfig_defaults": [
+    "waveshare-hw-colorbar.defaults"
+  ],
+  "required_config": {
+    "CONFIG_KMYC_PANEL_INTERNAL_BIST": "n"
+  }
+}

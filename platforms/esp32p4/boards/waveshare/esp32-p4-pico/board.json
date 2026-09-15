@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "kind": "board",
+  "id": "waveshare-esp32-p4-pico",
+  "manufacturer": "waveshare",
+  "manufacturer_name": "微雪电子",
+  "model": "ESP32-P4-Pico",
+  "target": "esp32p4",
+  "sources": [
+    "board.c"
+  ],
+  "include_dirs": [
+    "."
+  ],
+  "required_config": {
+    "CONFIG_ESPTOOLPY_FLASHSIZE_32MB": "y",
+    "CONFIG_SPIRAM": "y",
+    "CONFIG_SPIRAM_SPEED_200M": "y"
+  },
+  "profiles": {
+    "rev3_x": {
+      "sdkconfig_defaults": "sdkconfig.rev3_x.defaults",
+      "required_config": {
+        "CONFIG_ESP32P4_SELECTS_REV_LESS_V3": "n",
+        "CONFIG_ESP32P4_REV_MIN_300": "y"
+      }
+    },
+    "rev1_3": {
+      "sdkconfig_defaults": "sdkconfig.rev1_3.defaults",
+      "required_config": {
+        "CONFIG_ESP32P4_SELECTS_REV_LESS_V3": "y",
+        "CONFIG_ESP32P4_REV_MIN_100": "y"
+      }
+    }
+  }
+}

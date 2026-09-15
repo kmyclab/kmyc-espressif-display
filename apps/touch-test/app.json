@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "kind": "app",
+  "id": "touch-test",
+  "targets": [
+    "esp32p4"
+  ],
+  "requires": [
+    "rgb888-draw",
+    "touch-poll"
+  ],
+  "default_preset": "waveshare-pico-r1-d101-touch"
+}

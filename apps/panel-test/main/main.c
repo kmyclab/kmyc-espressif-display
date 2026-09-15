@@ -21,7 +21,7 @@ void app_main(void)
     const bool internal_bist = false;
 #endif
     ESP_ERROR_CHECK(kmyc_display_start(internal_bist));
-    ESP_LOGW(TAG, "Experimental diagnostic; touch is not initialized");
+    ESP_LOGI(TAG, "Panel test started; touch is not initialized in this app");
 
     unsigned long pattern_number = 0;
     while (true) {

@@ -6,7 +6,6 @@
   "manufacturer_name": "启明云端",
   "model": "WT9932P4-TINY_1V2",
   "target": "esp32p4",
-  "status": "experimental",
   "sources": [
     "board.c"
   ],

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "kind": "adapter",
+  "id": "wireless-tiny-d101-dsi2",
+  "target": "esp32p4",
+  "board": "wireless-wt9932p4-tiny-v1.2",
+  "display": "KMYC-D101-DSI4L-800X1280-A1",
+  "mode": "dsi2-800mbps-71mhz",
+  "assemblies": [],
+  "capabilities": [
+    "panel-bist",
+    "dsi-pattern",
+    "rgb888-draw"
+  ],
+  "physical_adapter_model": null,
+  "sources": [
+    "../common/dsi2_diagnostic.c"
+  ],
+  "include_dirs": [
+    "."
+  ]
+}

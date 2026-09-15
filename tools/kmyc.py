@@ -73,6 +73,11 @@ def catalog(root=ROOT):
     for entry in result["assembly"].values():
         require(entry["display"] in result["display"] and entry["touch"] in result["touch"],
                 f"Unresolved assembly references: {entry['model']}")
+    for entry in result["adapter"].values():
+        require(all(model in result["assembly"] for model in entry.get("assemblies", [])),
+                f"Unresolved assembly in adapter: {entry['id']}")
+        require(all(model in result["touch"] for model in entry.get("touches", [])),
+                f"Unresolved touch in adapter: {entry['id']}")
     for entry in result["board"].values():
         path = entry["_path"]
         require(path.parent.parent.name == entry["manufacturer"], f"Manufacturer/path mismatch: {path}")
@@ -87,7 +92,15 @@ def lookup(data, kind, key):
 
 def resolve(data, preset):
     app = lookup(data, "app", preset["app"])
-    board = lookup(data, "board", preset["board"])
+    board = dict(lookup(data, "board", preset["board"]))
+    profiles = board.get("profiles", {})
+    profile_id = preset.get("board_profile")
+    if profiles:
+        require(profile_id in profiles,
+                "Preset must select a registered board_profile")
+        board["_selected_profile"] = profiles[profile_id]
+    else:
+        require(profile_id is None, "Board does not define selectable profiles")
     platform = lookup(data, "platform", board["target"])
     display = lookup(data, "display", preset["display"])
     adapter = lookup(data, "adapter", preset["adapter"])
@@ -96,16 +109,33 @@ def resolve(data, preset):
             and adapter["target"] == board["target"], "Adapter does not match board/display/target")
     require(adapter["mode"] in {mode["id"] for mode in display["modes"]},
             "Adapter references an unsupported display mode")
-    require(set(app["requires"]).issubset(adapter["capabilities"]),
+    required_capabilities = set(app["requires"]) | set(preset.get("requires", []))
+    require(required_capabilities.issubset(adapter["capabilities"]),
             "Adapter lacks capabilities required by the App")
     require(preset["idf"] in platform["idf_versions"], "SDK version is not registered for this platform")
-    if preset.get("assembly"):
-        assembly = lookup(data, "assembly", preset["assembly"])
+    selection = {"preset": preset, "app": app, "board": board, "platform": platform,
+                 "display": display, "adapter": adapter}
+    assembly_id = preset.get("assembly")
+    touch_id = preset.get("touch")
+    require(not (assembly_id and touch_id),
+            "Preset must select either an assembly or a standalone touch product")
+    if assembly_id:
+        assembly = lookup(data, "assembly", assembly_id)
+        touch = lookup(data, "touch", assembly["touch"])
         require(assembly["display"] == display["model"], "Assembly/display mismatch")
         require(assembly["model"] in adapter["assemblies"],
                 "Assembly is metadata-only or has no implemented adapter")
-    return {"preset": preset, "app": app, "board": board, "platform": platform,
-            "display": display, "adapter": adapter}
+        require(touch.get("implementation"), "Selected touch product has no implementation")
+        selection.update(assembly=assembly, touch=touch)
+    elif touch_id:
+        touch = lookup(data, "touch", touch_id)
+        require(touch["model"] in adapter.get("touches", []),
+                "Touch product has no implemented board/display adapter")
+        require(touch.get("implementation"), "Selected touch product has no implementation")
+        selection.update(touch=touch)
+    require(not any(item.startswith("touch-") for item in app["requires"]) or "touch" in selection,
+            "App requires a preset with an implemented touch assembly")
+    return selection
 
 
 def source_paths(root, selection, field, kinds=("platform", "board", "display", "adapter")):
@@ -114,16 +144,25 @@ def source_paths(root, selection, field, kinds=("platform", "board", "display", 
         entry = selection[kind]
         for value in entry.get(field, []):
             path = inside(root, entry["_path"].parent / value)
-            require(path.is_file() if field == "sources" else path.is_dir(), f"Missing {field}: {path}")
+            require(path.is_file() if field.endswith("sources") else path.is_dir(),
+                    f"Missing {field}: {path}")
             paths.append(path)
     return paths
 
 
 def default_files(root, selection):
-    return [root / "sdkconfig.defaults"] + [
+    files = [root / "sdkconfig.defaults"] + [
         selection[kind]["_path"].parent / "sdkconfig.defaults"
         for kind in ("platform", "board", "app")
     ]
+    profile = selection["board"].get("_selected_profile")
+    if profile:
+        profile_path = selection["board"]["_path"].parent / profile["sdkconfig_defaults"]
+        files.insert(-1, profile_path)
+    preset = selection["preset"]
+    for value in preset.get("sdkconfig_defaults", []):
+        files.append(inside(root, preset["_path"].parent / value))
+    return files
 
 
 def fingerprint(root, selection):
@@ -152,6 +191,13 @@ def configure(root, selection, output):
     includes = source_paths(root, selection, "include_dirs", ("platform", "board", "adapter"))
     product_sources = source_paths(root, selection, "sources", ("display",))
     product_includes = source_paths(root, selection, "include_dirs", ("display",))
+    touch_sources = []
+    touch_includes = []
+    if "touch" in selection:
+        touch_sources = source_paths(root, selection, "sources", ("touch",))
+        touch_includes = source_paths(root, selection, "include_dirs", ("touch",))
+        touch_includes += source_paths(root, selection, "touch_include_dirs", ("adapter",))
+        touch_includes += source_paths(root, selection, "include_dirs", ("board",))
     defaults = default_files(root, selection)
     for path in defaults:
         require(path.is_file(), f"Missing defaults: {path}")
@@ -168,6 +214,9 @@ def configure(root, selection, output):
     body += cmake_set("KMYC_DISPLAY_INCLUDE_DIRS", [path.as_posix() for path in includes])
     body += cmake_set("KMYC_PRODUCT_SOURCES", [path.as_posix() for path in product_sources])
     body += cmake_set("KMYC_PRODUCT_INCLUDE_DIRS", [path.as_posix() for path in product_includes])
+    body += cmake_set("KMYC_TOUCH_SOURCES", [path.as_posix() for path in touch_sources])
+    body += cmake_set("KMYC_TOUCH_INCLUDE_DIRS", [path.as_posix() for path in touch_includes])
+    body += cmake_set("KMYC_TOUCH_ENABLED", ["1" if "touch" in selection else "0"])
     # A selected display exposes the short IDF component name kmyc_panel.
     # This keeps product identities out of Windows object/library filenames.
     product_dir = selection["display"]["_path"].parent / "driver/kmyc_panel"
@@ -193,9 +242,18 @@ def verify_sdkconfig(selection, path):
         if line.startswith("CONFIG_") and "=" in line:
             key, value = line.split("=", 1)
             values[key] = value
+        else:
+            unset = re.fullmatch(r"# (CONFIG_[A-Z0-9_]+) is not set", line)
+            if unset:
+                values[unset.group(1)] = "n"
     require(values.get("CONFIG_IDF_TARGET") == json.dumps(selection["board"]["target"]),
             "sdkconfig belongs to another target")
-    for key, value in selection["board"].get("required_config", {}).items():
+    required = dict(selection["board"].get("required_config", {}))
+    profile = selection["board"].get("_selected_profile")
+    if profile:
+        required.update(profile.get("required_config", {}))
+    required.update(selection["preset"].get("required_config", {}))
+    for key, value in required.items():
         require(values.get(key) == value, f"Board requires {key}={value}; current sdkconfig differs")
 
 
@@ -247,12 +305,30 @@ def select(data):
         candidates = [item for item in candidates if item["preset"][field] == chosen]
     for index, item in enumerate(candidates, 1):
         preset = item["preset"]
-        print(f"  {index}. {preset['id']} | adapter={preset['adapter']} | {preset['status']}")
-    answer = input("Preset [1]: ").strip() or "1"
+        print(f"  {index}. {preset['id']} | adapter={preset['adapter']}")
+    answer = input("Choose preset [1]: ").strip() or "1"
     require(answer.isdigit() and 1 <= int(answer) <= len(candidates), "Invalid preset")
     preset = candidates[int(answer) - 1]["preset"]
     print(f"Selected: {preset['id']}\npython tools/kmyc.py build --preset {preset['id']}")
     print("Selection only; no build or flash was started.")
+
+
+def print_preset_list(data):
+    for preset in data["preset"].values():
+        selected = resolve(data, preset)
+        board = selected["board"]
+        manufacturer = board["manufacturer"]
+        profile = preset.get("board_profile")
+        board_text = f"{manufacturer} {board['model']}"
+        if profile:
+            board_text += f" ({profile})"
+        print(preset["id"])
+        print(f"  App: {preset['app']}")
+        print(f"  Board: {board_text}")
+        print(f"  Display: {preset['display']}")
+        if "touch" in selected:
+            print(f"  Touch: {selected['touch']['model']}")
+        print(f"  SDK: ESP-IDF {preset['idf']}")
 
 
 def main(argv=None):
@@ -273,8 +349,12 @@ def main(argv=None):
     try:
         data = catalog()
         if args.action == "list":
-            for key, entry in data[PLURALS[args.kind]].items():
-                print(f"{key}\t{entry.get('status', 'registered')}")
+            kind = PLURALS[args.kind]
+            if kind == "preset":
+                print_preset_list(data)
+            else:
+                for key in data[kind]:
+                    print(key)
         elif args.action == "select":
             select(data)
         else:
@@ -285,7 +365,7 @@ def main(argv=None):
                 source_paths(ROOT, selection, "include_dirs")
                 if args.action == "check":
                     fingerprint(ROOT, selection)
-                    print(f"OK {preset['id']} ({selection['board']['target']}, IDF {preset['idf']}, {preset['status']})")
+                    print(f"OK {preset['id']} ({selection['board']['target']}, IDF {preset['idf']})")
                 elif args.action == "configure":
                     require(not args.app or args.app == preset["app"], "Preset belongs to a different App")
                     print(configure(ROOT, selection, ROOT / "out" / preset["id"]))

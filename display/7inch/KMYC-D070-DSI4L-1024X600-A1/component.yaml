@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "kind": "display",
+  "model": "KMYC-D070-DSI4L-1024X600-A1",
+  "version": "0.1.0",
+  "vendor_panel": "HYY7BIPS27A",
+  "controller": "JD9165BA",
+  "interface": {
+    "type": "mipi-dsi",
+    "product_lanes": 4
+  },
+  "modes": [
+    {
+      "id": "dsi2-750mbps-51mhz",
+      "lanes": 2,
+      "lane_bit_rate_mbps": 750,
+      "pixel_clock_mhz": 51
+    }
+  ],
+  "sources": [
+    "driver/panel_hyy7bips27a.c"
+  ],
+  "include_dirs": [
+    "driver"
+  ]
+}

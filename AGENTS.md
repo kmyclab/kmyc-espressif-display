@@ -1,32 +1,24 @@
-# KMYC ESP-IDF workspace
+# Repository instructions
 
-This is the public KMYC Espressif display repository. Keep published source,
-reproducible configuration, customer-facing documentation and validation records
-here. Do not add credentials, local environment records, vendor documents, build
-output or material that is not cleared for redistribution.
+This is the public KMYC Espressif display repository. Published firmware must be
+self-contained and must not depend on files from a private parent workspace. Never
+commit credentials, customer data, supplier documents, raw logs or generated output.
 
-Read docs/architecture.md and the validation record for the selected adapter before
-changing firmware. Preserve the established display, touch and assembly identities.
-
-- Each apps/<app> is an independent C ESP-IDF project with its own app_main().
-- Use four spaces, snake_case C identifiers and uppercase macros.
-- Keep GPIO, power and chip HAL details outside App code.
-- Product directories are display/<size>/<full model>, touch/<size>/<full model>
-  and assembly/<size>/<full model>. Do not replace models with supplier parts.
-- Chip-specific code belongs in platforms/<idf_target>/. Manufacturer wireless
-  means 启明云端. Preserve physical revision in the board ID.
-- Do not create working catalog entries for planned apps, chips or boards.
-- Keep the existing BIST mode, supplier command sequence, two-lane experimental
-  settings, ACK policy and SDK 5.5.3 baseline unless explicitly debugging them.
-- Do not flash or request hardware changes during software restructuring.
-  Before physical bring-up, require power-off and exact board/display/touch,
-  adapter, serial and network confirmation. No hot-plugging FFCs.
-- Do not add supplier documents or third-party source unless redistribution rights
-  and customer relevance have been confirmed.
-- Catalog .yaml files use JSON syntax (a YAML subset), matching the existing Pi
-  catalog convention. Maintain one source list in module metadata.
-- Run python tools/kmyc.py check and python -m unittest discover -s tests.
-  For firmware changes, build the affected preset using its specified SDK.
-- Record build checks separately from hardware/visual results in docs/validation/.
-- Do not hand-edit dependencies.lock. Keep out/, managed_components/, generated
-  sdkconfig, credentials, raw logs and archives out of Git.
+- Each `apps/<app>/` is an independent C ESP-IDF project with its own
+  `main/main.c` and `app_main()`.
+- Use four-space indentation, `snake_case` C identifiers and uppercase macros.
+- Keep GPIO, power control and chip HAL details outside application code.
+- Keep product identities under `display/`, `touch/` and `assembly/`; chip and board
+  support belongs under `platforms/<idf_target>/`.
+- Use `wireless` as the manufacturer ID for 启明云端, including
+  WT9932P4-TINY V1.2.
+- Catalog `.yaml` files use JSON syntax. Register only implemented combinations and
+  keep source lists in module metadata.
+- Maintain compatibility status only in `docs/hardware-support.md`. Do not create
+  per-adapter status or validation-report files.
+- Before changing connected hardware, power off the board and display. Never
+  hot-plug MIPI-DSI or touch FFCs.
+- Run `python tools/kmyc.py check` and `python -m unittest discover -s tests` before
+  committing. Build affected firmware with its preset and declared ESP-IDF version.
+- Do not hand-edit `dependencies.lock`. Keep `out/`, `build/`,
+  `managed_components/`, generated `sdkconfig`, local archives and logs out of Git.
