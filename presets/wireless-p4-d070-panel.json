@@ -1,13 +1,12 @@
 {
   "schema": 1,
   "kind": "preset",
-  "id": "waveshare-pico-r3-d101-panel",
+  "id": "wireless-p4-d070-panel",
   "app": "panel-test",
-  "board": "waveshare-esp32-p4-pico",
-  "board_profile": "rev3_x",
-  "display": "KMYC-D101-DSI4L-800X1280-A1",
+  "board": "wireless-wt9932p4-tiny-v1.2",
+  "display": "KMYC-D070-DSI4L-1024X600-A1",
   "assembly": null,
-  "adapter": "waveshare-pico-d101-dsi2",
+  "adapter": "wireless-tiny-d070-dsi2",
   "idf": "5.5.3",
   "requires": [
     "dsi-pattern"

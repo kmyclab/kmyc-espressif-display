@@ -13,6 +13,7 @@
 | CC10128007-31C / KMYC-DT101 | Waveshare ESP32-P4-Pico / v1.x | ✅ | ✅ | `waveshare-pico-r1-d101-panel`、`waveshare-pico-r1-d101-bist`、`waveshare-pico-r1-d101-touch` |
 | CC10128007-31C / KMYC-DT101 | Waveshare ESP32-P4-Pico / v3.x | 🧪 | 🧪 | `waveshare-pico-r3-d101-panel`、`waveshare-pico-r3-d101-bist`、`waveshare-pico-r3-d101-touch` |
 | HYY7BIPS27A / KMYC-D070 + KMYC-T070 | Waveshare ESP32-P4-Pico / v1.x | ✅ | ✅ | `waveshare-pico-r1-d070-panel`、`waveshare-pico-r1-d070-touch` |
+| HYY7BIPS27A / KMYC-D070 + KMYC-T070 | 启明云端 WT9932P4-TINY V1.2 / v1.3 | ✅ | ✅ | `wireless-p4-d070-panel`、`wireless-p4-d070-touch` |
 | CC10128007-31C / KMYC-D101 | 启明云端 WT9932P4-TINY V1.2 / v1.3 | 🧪 | — | `wireless-p4-d101-panel-test` |
 
 表中的短型号对应：

@@ -13,7 +13,7 @@
     "dsi-pattern"
   ],
   "sdkconfig_defaults": [
-    "waveshare-hw-colorbar.defaults"
+    "panel-hw-colorbar.defaults"
   ],
   "required_config": {
     "CONFIG_KMYC_PANEL_INTERNAL_BIST": "n"

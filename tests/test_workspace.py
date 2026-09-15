@@ -18,6 +18,7 @@ WAVESHARE_PRESET = "waveshare-pico-r3-d101-bist"
 WAVESHARE_PANEL_PRESET = "waveshare-pico-r1-d101-panel"
 WAVESHARE_TOUCH_PRESET = "waveshare-pico-r1-d101-touch"
 D070_TOUCH_PRESET = "waveshare-pico-r1-d070-touch"
+WIRELESS_D070_TOUCH_PRESET = "wireless-p4-d070-touch"
 
 
 class WorkspaceTests(unittest.TestCase):
@@ -53,7 +54,7 @@ class WorkspaceTests(unittest.TestCase):
         preset = copy.deepcopy(self.data["preset"][WAVESHARE_PANEL_PRESET])
         selected = kmyc.resolve(self.data, preset)
         defaults = kmyc.default_files(ROOT, selected)
-        self.assertEqual(defaults[-1].name, "waveshare-hw-colorbar.defaults")
+        self.assertEqual(defaults[-1].name, "panel-hw-colorbar.defaults")
         self.assertEqual(preset["required_config"]["CONFIG_KMYC_PANEL_INTERNAL_BIST"], "n")
 
     def test_touch_app_selects_implemented_assembly_and_own_main(self):
@@ -74,6 +75,14 @@ class WorkspaceTests(unittest.TestCase):
         preset = copy.deepcopy(self.data["preset"][D070_TOUCH_PRESET])
         selected = kmyc.resolve(self.data, preset)
         self.assertNotIn("assembly", selected)
+        self.assertEqual(selected["display"]["controller"], "JD9165BA")
+        self.assertEqual(selected["touch"]["controller"], "GT911")
+        self.assertEqual(selected["adapter"]["mode"], "dsi2-750mbps-51mhz")
+
+    def test_wireless_board_reuses_the_d070_products(self):
+        preset = copy.deepcopy(self.data["preset"][WIRELESS_D070_TOUCH_PRESET])
+        selected = kmyc.resolve(self.data, preset)
+        self.assertEqual(selected["board"]["model"], "WT9932P4-TINY_1V2")
         self.assertEqual(selected["display"]["controller"], "JD9165BA")
         self.assertEqual(selected["touch"]["controller"], "GT911")
         self.assertEqual(selected["adapter"]["mode"], "dsi2-750mbps-51mhz")
