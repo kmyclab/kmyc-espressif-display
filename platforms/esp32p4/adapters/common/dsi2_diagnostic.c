@@ -14,15 +14,43 @@
 #include "kmyc_panel_product.h"
 #include "kmyc_p4_pattern.h"
 #include "wiring.h"
+#if KMYC_ADAPTER_BRIDGE_V12
+#include "bridge.h"
+#endif
 
 static const char *TAG = KMYC_ADAPTER_LOG_TAG;
 static esp_lcd_panel_handle_t s_panel;
 static bool s_internal_bist;
+static esp_lcd_panel_io_handle_t s_dbi_io;
+static bool s_asleep;
+#if KMYC_ADAPTER_BRIDGE_V12
+static uint8_t s_saved_brightness = 153;
+#endif
+static kmyc_display_flush_done_cb_t s_flush_done;
+static void *s_flush_context;
+
+static bool color_done(esp_lcd_panel_handle_t panel,
+                       esp_lcd_dpi_panel_event_data_t *event, void *context)
+{
+    (void)panel; (void)event; (void)context;
+    return s_flush_done ? s_flush_done(s_flush_context) : false;
+}
+
+esp_err_t kmyc_display_set_flush_done_callback(kmyc_display_flush_done_cb_t callback, void *context)
+{
+    if (!s_panel || s_internal_bist) return ESP_ERR_INVALID_STATE;
+    s_flush_done = callback; s_flush_context = context;
+    const esp_lcd_dpi_panel_event_callbacks_t callbacks = {.on_color_trans_done = color_done};
+    return esp_lcd_dpi_panel_register_event_callbacks(s_panel,&callbacks,NULL);
+}
 
 static esp_err_t init_dsi_panel(esp_lcd_panel_handle_t *panel_out, bool internal_bist)
 {
     ESP_RETURN_ON_FALSE(panel_out, ESP_ERR_INVALID_ARG, TAG, "panel_out is null");
 
+#if KMYC_ADAPTER_BRIDGE_V12
+    ESP_RETURN_ON_ERROR(kmyc_bridge_prepare(), TAG, "bridge preparation failed");
+#endif
     ESP_RETURN_ON_ERROR(kmyc_board_power_display(), TAG, "failed to power display");
 
     ESP_LOGI(TAG, "Creating %d-lane DSI bus at %d Mbps/lane",
@@ -45,6 +73,7 @@ static esp_err_t init_dsi_panel(esp_lcd_panel_handle_t *panel_out, bool internal
     };
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_dbi(dsi_bus, &dbi_config, &dbi_io), TAG,
                         "failed to create DBI command channel");
+    s_dbi_io = dbi_io;
 
     /* This panel does not return command acknowledgements on the adapter link. */
     ESP_LOGI(TAG, "Disabling DSI command acknowledgements for write-only panel link");
@@ -76,11 +105,15 @@ static esp_err_t init_dsi_panel(esp_lcd_panel_handle_t *panel_out, bool internal
     ESP_LOGI(TAG, "Disabling DPI frame acknowledgements for write-only panel link");
     mipi_dsi_host_ll_dpi_enable_frame_ack(MIPI_DSI_LL_GET_HOST(0), KMYC_ADAPTER_FRAME_ACK);
 
-    ESP_LOGI(TAG, "Software-resetting panel (%s)", KMYC_ADAPTER_RESET_DESCRIPTION);
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(dbi_io, LCD_CMD_SWRESET, NULL, 0), TAG,
-                        "panel software reset failed");
-    /* Required when the MCU restarts while the panel is already in Sleep Out mode. */
-    vTaskDelay(pdMS_TO_TICKS(120));
+#if KMYC_ADAPTER_BRIDGE_V12
+    if (!kmyc_bridge_has_control())
+#endif
+    {
+        ESP_LOGI(TAG, "Software-resetting panel (%s)", KMYC_ADAPTER_RESET_DESCRIPTION);
+        ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(dbi_io, LCD_CMD_SWRESET, NULL, 0), TAG,
+                            "panel software reset failed");
+        vTaskDelay(pdMS_TO_TICKS(120));
+    }
 
     ESP_LOGI(TAG, "Initializing selected panel product without a DSI ID read");
     ESP_RETURN_ON_ERROR(kmyc_panel_product_initialize(
@@ -122,7 +155,14 @@ esp_err_t kmyc_display_start(bool internal_bist)
         return ESP_ERR_INVALID_STATE;
     }
     s_internal_bist = internal_bist;
-    return init_dsi_panel(&s_panel, internal_bist);
+    esp_err_t error = init_dsi_panel(&s_panel, internal_bist);
+#if KMYC_ADAPTER_BRIDGE_V12
+    if (error != ESP_OK && kmyc_bridge_has_control()) {
+        esp_err_t safe_error = kmyc_bridge_fail_safe();
+        ESP_LOGE(TAG,"Startup failure; PWM0/LCD_RST-low safeguard: %s",esp_err_to_name(safe_error));
+    }
+#endif
+    return error;
 }
 
 esp_err_t kmyc_display_set_test_pattern(bool horizontal)
@@ -142,4 +182,56 @@ esp_err_t kmyc_display_draw_rgb888(int x_start, int y_start, int x_end, int y_en
         return ESP_ERR_INVALID_ARG;
     }
     return esp_lcd_panel_draw_bitmap(s_panel, x_start, y_start, x_end, y_end, pixels);
+}
+
+bool kmyc_display_is_asleep(void) { return s_asleep; }
+
+esp_err_t kmyc_display_set_brightness(uint8_t percent)
+{
+#if KMYC_ADAPTER_BRIDGE_V12
+    if (percent > 100) return ESP_ERR_INVALID_ARG;
+    if (!s_panel || s_asleep) return ESP_ERR_INVALID_STATE;
+    uint8_t duty = ((unsigned)percent * 255 + 50) / 100;
+    esp_err_t error = kmyc_bridge_brightness(duty);
+    if (error == ESP_OK) s_saved_brightness = duty;
+    return error;
+#else
+    (void)percent;
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+esp_err_t kmyc_display_sleep(void)
+{
+#if KMYC_ADAPTER_BRIDGE_V12
+    if (!s_panel || s_asleep) return ESP_ERR_INVALID_STATE;
+    if (!kmyc_bridge_has_control()) return ESP_ERR_NOT_SUPPORTED;
+    ESP_RETURN_ON_ERROR(kmyc_bridge_brightness(0), TAG, "PWM zero");
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(s_dbi_io,0x28,NULL,0), TAG, "display off");
+    vTaskDelay(pdMS_TO_TICKS(20));
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(s_dbi_io,0x10,NULL,0), TAG, "sleep in");
+    vTaskDelay(pdMS_TO_TICKS(120));
+    s_asleep = true; /* Panel is asleep even if touch transition fails. */
+    return kmyc_bridge_touch_sleep();
+#else
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+esp_err_t kmyc_display_wake(void)
+{
+#if KMYC_ADAPTER_BRIDGE_V12
+    if (!s_panel || !s_asleep) return ESP_ERR_INVALID_STATE;
+    if (!kmyc_bridge_has_control()) return ESP_ERR_NOT_SUPPORTED;
+    esp_err_t touch_error = kmyc_bridge_touch_wake();
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(s_dbi_io,0x11,NULL,0), TAG, "sleep out");
+    vTaskDelay(pdMS_TO_TICKS(120));
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(s_dbi_io,0x29,NULL,0), TAG, "display on");
+    vTaskDelay(pdMS_TO_TICKS(20));
+    ESP_RETURN_ON_ERROR(kmyc_bridge_brightness(s_saved_brightness), TAG, "restore brightness");
+    s_asleep = false;
+    return touch_error; /* Display recovery does not conceal a missing touch. */
+#else
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
 }

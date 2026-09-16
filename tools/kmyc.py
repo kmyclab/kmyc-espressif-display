@@ -217,6 +217,7 @@ def configure(root, selection, output):
     body += cmake_set("KMYC_TOUCH_SOURCES", [path.as_posix() for path in touch_sources])
     body += cmake_set("KMYC_TOUCH_INCLUDE_DIRS", [path.as_posix() for path in touch_includes])
     body += cmake_set("KMYC_TOUCH_ENABLED", ["1" if "touch" in selection else "0"])
+    body += cmake_set("KMYC_BRIDGE_ENABLED", ["1" if "controller-lifecycle" in selection["adapter"]["capabilities"] else "0"])
     # A selected display exposes the short IDF component name kmyc_panel.
     # This keeps product identities out of Windows object/library filenames.
     product_dir = selection["display"]["_path"].parent / "driver/kmyc_panel"

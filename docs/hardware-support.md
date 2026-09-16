@@ -3,7 +3,7 @@
 这是仓库中唯一记录兼容状态的文件。
 
 - ✅ 可用：已经在实物上正常使用。
-- 🧪 待确认：代码可以构建，尚未确认实物。
+- 🧪 待确认/集成测试中：代码可以构建，实物尚未确认或仅完成初测；具体范围见下文。
 - — 未适配：当前没有对应功能。
 
 ## 兼容性状态表
@@ -15,6 +15,7 @@
 | HYY7BIPS27A / KMYC-D070 + KMYC-T070 | Waveshare ESP32-P4-Pico / v1.x | ✅ | ✅ | `waveshare-pico-r1-d070-panel`、`waveshare-pico-r1-d070-touch` |
 | HYY7BIPS27A / KMYC-D070 + KMYC-T070 | 启明云端 WT9932P4-TINY V1.2 / v1.3 | ✅ | ✅ | `wireless-p4-d070-panel`、`wireless-p4-d070-touch` |
 | CC10128007-31C / KMYC-D101 | 启明云端 WT9932P4-TINY V1.2 / v1.3 | 🧪 | — | `wireless-p4-d101-panel-test` |
+| KMYC-D070 + KMYC-T070 / Bridge V1.2 | 启明云端 WT9932P4-TINY V1.2 / v1.3 | 🧪 | 🧪 | `wireless-p4-d070-bridge-v12-demo` |
 
 表中的短型号对应：
 
@@ -52,3 +53,16 @@ RGB888、1024×600、51 MHz、每 lane 750 Mbps。
 
 - [Waveshare ESP32-P4-Pico 文档](https://docs.waveshare.net/ESP32-P4-Pico/)
 - [Waveshare ESP32-P4 芯片修订配置](https://github.com/waveshareteam/ESP32-P4-Platform/blob/main/docs/ESP32P4_REVISION_CONFIG.md)
+
+## Bridge V1.2 interactive demo（集成测试中）
+
+共享 I²C 使用 SDA GPIO7 / SCL GPIO8，控制器0x2C与GT911共总线。该正式接口
+与内部双开发板夹具GPIO16/17不同，不能沿用夹具接线结论。LVGL9.2.2应用提供
+身份/亮度/图样/触摸/生命周期页面；依赖描述不匹配只告警，preset仍为硬件真值。
+原有无控制器preset保留其DCS复位与默认GPIO定义。编译与host测试不构成屏幕、
+触控、休眠唤醒、背光极性或真实硬件时序通过证据。
+
+当前 D070 + GT911 + Bridge V1.2 已完成启动、亮度、触摸、一次 sleep/wake 和
+触点标记初测。该组合仍标记为 🧪 集成测试中，尚未完成冷启动/重启循环及
+1 小时/24 小时耐久测试，不能将初测视为全面验证。连接或更换硬件前仍须断电检查
+显示、触摸、转接板版本、供电和共地，禁止带电插拔 FFC。

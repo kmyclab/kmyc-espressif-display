@@ -4,5 +4,5 @@ idf_component_register(
     SRCS ${KMYC_TOUCH_SOURCES}
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS ${KMYC_TOUCH_INCLUDE_DIRS}
-    PRIV_REQUIRES esp_driver_i2c
+    PRIV_REQUIRES esp_driver_i2c kmyc_platform
 )

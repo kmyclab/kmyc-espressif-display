@@ -22,6 +22,72 @@ WIRELESS_D070_TOUCH_PRESET = "wireless-p4-d070-touch"
 
 
 class WorkspaceTests(unittest.TestCase):
+    def test_bridge_demo_uses_its_own_adapter_and_controller_capability(self):
+        data = kmyc.catalog(ROOT)
+        preset = data["preset"]["wireless-p4-d070-bridge-v12-demo"]
+        selected = kmyc.resolve(data, preset)
+        self.assertEqual(selected["app"]["id"], "interactive-demo")
+        self.assertEqual(selected["adapter"]["id"], "wireless-tiny-d070-bridge-v12-dsi2")
+        self.assertIn("controller-lifecycle", selected["adapter"]["capabilities"])
+        self.assertEqual(selected["touch"]["controller"], "GT911")
+        old = copy.deepcopy(preset)
+        old["adapter"] = "wireless-tiny-d070-dsi2"
+        with self.assertRaisesRegex(ValueError, "capabilities"):
+            kmyc.resolve(data, old)
+
+    def test_bridge_does_not_change_legacy_adapter_recipes(self):
+        data = kmyc.catalog(ROOT)
+        for name in ("wireless-p4-d070-touch", "waveshare-pico-r1-d101-touch"):
+            selected = kmyc.resolve(data, data["preset"][name])
+            self.assertNotIn("controller-lifecycle", selected["adapter"]["capabilities"])
+        manifest = (ROOT / "apps/interactive-demo/main/idf_component.yml").read_text()
+        self.assertIn('lvgl/lvgl: "==9.2.2"', manifest)
+
+    def test_shared_bus_pins_preserve_board_recipes(self):
+        for board in ("wireless/wt9932p4-tiny-v1.2", "waveshare/esp32-p4-pico"):
+            config = (ROOT / "platforms/esp32p4/boards" / board / "board_config.h").read_text()
+            self.assertIn("KMYC_BOARD_I2C_SCL_GPIO 8", config)
+            self.assertIn("KMYC_BOARD_I2C_SDA_GPIO 7", config)
+        for product, name in (("7inch/KMYC-T070-CTP-I2C-GT911-G01-A1", "gt911"),
+                              ("10.1inch/KMYC-T101-CTP-I2C-GT9271-G01-A1", "gt9271")):
+            driver = (ROOT / "touch" / product / "driver" / (name + "_touch.c")).read_text()
+            self.assertIn("kmyc_board_acquire_i2c", driver)
+            self.assertNotIn("i2c_new_master_bus", driver)
+            self.assertIn("kmyc_touch_notify_wake_signal_complete", driver)
+
+    def test_demo_events_queue_actions_without_chip_io(self):
+        ui = (ROOT / "apps/interactive-demo/main/demo_ui.c").read_text()
+        service = (ROOT / "apps/interactive-demo/main/demo_service.c").read_text()
+        main = (ROOT / "apps/interactive-demo/main/main.c").read_text()
+        event = ui.split("static void action(", 1)[1].split("static lv_obj_t *button", 1)[0]
+        self.assertIn("demo_service_queue_action", event)
+        self.assertIn("xQueueSend", service)
+        self.assertNotIn("lvgl.h", service)
+        self.assertNotIn("kmyc_touch_read", ui)
+        self.assertNotIn("lv_mem_add_pool", ui)
+        self.assertIn("MALLOC_CAP_SPIRAM", ui)
+        self.assertLess(len(main.splitlines()), 30)
+        self.assertNotIn("kmyc_display_sleep", event)
+        self.assertNotIn("kmyc_touch_", event)
+        self.assertIn("on_color_trans_done", (ROOT / "platforms/esp32p4/adapters/common/dsi2_diagnostic.c").read_text())
+
+    def test_touch_markers_use_parent_content_coordinates(self):
+        ui = (ROOT / "apps/interactive-demo/main/demo_ui.c").read_text()
+        poll = ui.split("static void poll_touch(void)", 1)[1].split("static void lvgl_task", 1)[0]
+        self.assertIn("lv_obj_update_layout(s_touch_area)", poll)
+        self.assertLess(poll.index("lv_obj_update_layout"), poll.index("lv_obj_get_content_coords"))
+        self.assertIn("lv_obj_get_content_coords(s_touch_area, &content)", poll)
+        self.assertNotIn("lv_obj_get_coords(s_touch_area", poll)
+        for axis in ("x", "y"):
+            self.assertIn(f"s_report.points[i].{axis} >= content.{axis}1", poll)
+            self.assertIn(f"s_report.points[i].{axis} <= content.{axis}2", poll)
+            self.assertIn(f"s_report.points[i].{axis} - content.{axis}1 -", poll)
+        self.assertIn("lv_obj_get_width(s_points[i]) / 2", poll)
+        self.assertIn("lv_obj_get_height(s_points[i]) / 2", poll)
+        self.assertIn("lv_obj_align(s_points[i], LV_ALIGN_TOP_LEFT, 0, 0)", ui)
+        self.assertIn("lv_obj_remove_flag(s_touch_area, LV_OBJ_FLAG_SCROLLABLE)", ui)
+        self.assertNotIn("- 6", poll)
+
     def setUp(self):
         self.data = kmyc.catalog(ROOT)
         self.preset = copy.deepcopy(self.data["preset"][PRESET])

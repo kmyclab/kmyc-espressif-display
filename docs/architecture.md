@@ -40,8 +40,9 @@ App 只调用公共显示/触摸接口。Adapter 提供 lane、GPIO、复位、�
 
 - `panel-test`：面板 BIST 和 ESP32-P4 硬件彩条。
 - `touch-test`：RGB888 测试画面、单点和多点触摸。
+- `interactive-demo`：LVGL 9.2.2、控制器状态、亮度、GT911 与休眠唤醒。
 
-未来的 LVGL、USB 副屏和量产测试也应建立独立 App，共用已有公共组件。这样客户
+其他 USB 副屏和生产应用也应建立独立 App，共用已有公共组件。这样客户
 拿到某个 App 时入口明确，不需要从一个大型 `main` 中关闭无关功能。
 
 ## 配置文件
@@ -63,8 +64,16 @@ App 只调用公共显示/触摸接口。Adapter 提供 lane、GPIO、复位、�
 
 ## 当前接口边界
 
-公共接口已覆盖显示初始化、RGB888 区域绘制和轮询触摸。接入 LVGL、USB 或多任务
-并发前，还需要明确帧缓冲所有权、同步和释放规则；多个设备共用 I2C 时也应由统一
-总线管理层协调，而不是让单个驱动独占总线。
+公共接口覆盖显示初始化、RGB888 区域绘制和轮询触摸。新增 `kmyc_platform`
+由板级配置获取唯一 I²C bus，GT911/GT9271 和控制器均借用、不得自行删除。
+`kmyc_controller` 是不包含器件时序的纯 C 协议客户端，仅读描述和控制原语；
+V1.2 adapter 持有该实例及互斥，负责 LCD/GT911/PWM 的具体时序。
+
+交互 App 的 service task 独占 I²C 与生命周期操作，LVGL task 只发 action queue
+并读取互斥保护的模型。默认两块 40 行 PSRAM 缓冲由 LVGL 管理；DPI
+`on_color_trans_done` 通知复制完成，LVGL 任务确认后才归还缓冲，ISR 不调用 LVGL。
+百分比亮度 API 在 adapter 映射到 raw duty。缺少/不兼容控制器时不发控制帧，
+沿用 DCS reset 和直接触控；运行中三次状态失败标记离线但不改变硬件输出。
+此模型不是通用多主机/任意调用者并发支持，其他后台任务不得绕过 service owner。
 
 具体扩展步骤见[参与贡献](../CONTRIBUTING.md)。

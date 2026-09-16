@@ -56,6 +56,13 @@ python tools/kmyc.py select
 
 选择器只给出建议的构建命令，不会自动编译或烧录。
 
+`wireless-p4-d070-bridge-v12-demo` 是 Bridge V1.2 交互应用。当前 D070 + GT911 +
+Bridge V1.2 已完成启动、亮度、触摸、一次 sleep/wake 和触点标记初测，仍处于
+集成测试中；尚未完成冷启动/重启循环及 1 小时/24 小时耐久测试，初测不代表全面验证。
+连接使用板级 GPIO7 SDA / GPIO8 SCL，共享 PY32 0x2C 和 GT911；勿套用双开发板
+内部夹具接线。连接或更换硬件前仍必须断电确认 D070/GT911、adapter 版本、供电和
+共地，再按[应用说明](../apps/interactive-demo/README.md)检查、构建和烧录。
+
 | 目的 | 推荐 preset（ESP32-P4 v1.x） |
 | --- | --- |
 | 10.1 寸 MIPI-DSI 视频链路 | `waveshare-pico-r1-d101-panel` |

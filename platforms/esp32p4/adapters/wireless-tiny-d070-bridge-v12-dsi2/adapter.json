@@ -1,0 +1,10 @@
+{
+  "schema": 1, "kind": "adapter", "id": "wireless-tiny-d070-bridge-v12-dsi2",
+  "target": "esp32p4", "board": "wireless-wt9932p4-tiny-v1.2",
+  "display": "KMYC-D070-DSI4L-1024X600-A1", "mode": "dsi2-750mbps-51mhz",
+  "assemblies": [], "touches": ["KMYC-T070-CTP-I2C-GT911-G01-A1"],
+  "capabilities": ["dsi-pattern", "rgb888-draw", "touch-poll", "controller-lifecycle"],
+  "physical_adapter_model": "mipi-bridge-31pin-to-15pin-22pin-v12",
+  "sources": ["../common/dsi2_diagnostic.c", "bridge.c"],
+  "include_dirs": ["."], "touch_include_dirs": ["."]
+}

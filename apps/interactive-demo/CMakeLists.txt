@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/kmyc_project.cmake")
+kmyc_project_setup(interactive-demo)
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+idf_build_set_property(KMYC_SELECTION_FILE "${KMYC_SELECTION_FILE}")
+project(kmyc_interactive_demo)
+kmyc_verify_configuration()

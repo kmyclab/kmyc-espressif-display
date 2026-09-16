@@ -1,0 +1,5 @@
+{
+  "schema": 1, "kind": "app", "id": "interactive-demo", "targets": ["esp32p4"],
+  "requires": ["rgb888-draw", "touch-poll", "controller-lifecycle"],
+  "default_preset": "wireless-p4-d070-bridge-v12-demo"
+}
