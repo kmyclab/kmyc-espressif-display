@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "kind": "adapter",
+  "id": "waveshare-pico-d101-bridge-v12-dsi2",
+  "target": "esp32p4",
+  "board": "waveshare-esp32-p4-pico",
+  "display": "KMYC-D101-DSI4L-800X1280-A1",
+  "mode": "dsi2-1000mbps-71mhz",
+  "assemblies": ["KMYC-DT101-DSI4L-800X1280-GT9271-OCA-G01-A1"],
+  "touches": ["KMYC-T101-CTP-I2C-GT9271-G01-A1"],
+  "capabilities": ["dsi-pattern", "rgb888-draw", "touch-poll", "controller-lifecycle"],
+  "physical_adapter_model": "mipi-bridge-31pin-to-15pin-22pin-v12",
+  "sources": ["../common/dsi2_diagnostic.c", "../common/bridge_v12.c"],
+  "include_dirs": [".", "../common"],
+  "touch_include_dirs": ["."]
+}

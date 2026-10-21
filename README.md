@@ -3,7 +3,7 @@
 面向乐鑫芯片的 KMYC 显示与触摸驱动、开发板适配和硬件测试程序。
 
 通过一个 preset 选择开发板、屏幕和测试程序，不需要复制工程或修改
-`main.c`。应用均为独立的 C 语言 ESP-IDF 工程；`interactive-demo` 使用
+`main.c`。应用均为独立的 C 语言 ESP-IDF 工程；`interactive-demo` 和 `lvgl-widgets` 使用
 锁定的 LVGL 9.2.2，其余诊断应用不依赖 LVGL。
 
 支持的屏幕、开发板和当前状态统一维护在[硬件支持](docs/hardware-support.md)。
@@ -14,6 +14,7 @@
 | --- | --- | --- |
 | `panel-test` | 检查面板初始化和 MIPI-DSI 显示链路 | 面板 BIST 或 ESP32-P4 彩条 |
 | `touch-test` | 检查显示方向、单点、边缘和最多五点触控 | 网格、测试目标和实时触点 |
+| [`lvgl-widgets`](apps/lvgl-widgets/README.md) | 展示经典 LVGL 控件与触摸交互 | 官方 Widgets Demo：Logo、Profile / Analytics / Shop |
 | `interactive-demo` | Bridge V1.2 控制器、显示、触控生命周期集成 | LVGL 四页界面；初步实机通过，耐久/循环测试中 |
 
 新增应用共用同一套开发板和屏幕驱动。交互示例见

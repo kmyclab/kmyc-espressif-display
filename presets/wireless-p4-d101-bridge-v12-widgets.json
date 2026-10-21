@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "kind": "preset",
+  "id": "wireless-p4-d101-bridge-v12-widgets",
+  "app": "lvgl-widgets",
+  "board": "wireless-wt9932p4-tiny-v1.2",
+  "display": "KMYC-D101-DSI4L-800X1280-A1",
+  "assembly": "KMYC-DT101-DSI4L-800X1280-GT9271-OCA-G01-A1",
+  "adapter": "wireless-tiny-d101-bridge-v12-dsi2",
+  "idf": "5.5.3",
+  "required_config": {
+    "CONFIG_LV_USE_DEMO_WIDGETS": "y",
+    "CONFIG_LV_COLOR_DEPTH_24": "y",
+    "CONFIG_LV_USE_CLIB_MALLOC": "y",
+    "CONFIG_LV_FONT_MONTSERRAT_16": "y",
+    "CONFIG_LV_FONT_MONTSERRAT_24": "y"
+  }
+}

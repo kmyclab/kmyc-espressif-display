@@ -21,7 +21,10 @@
 static const char *TAG = "gt9271";
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_device;
-static kmyc_touch_info_t s_info;
+static kmyc_touch_info_t s_info = {
+    .model = "KMYC-T101-CTP-I2C-GT9271-G01-A1",
+    .controller = "GT9271",
+};
 
 static esp_err_t read_register(uint16_t reg, uint8_t *data, size_t size)
 {
@@ -116,7 +119,11 @@ const kmyc_touch_info_t *kmyc_touch_get_info(void) { return &s_info; }
 
 esp_err_t kmyc_touch_reprobe(void)
 {
-    if (!s_device) return kmyc_touch_start();
+    if (!s_device) {
+        s_info.last_error = kmyc_touch_start();
+        s_info.available = s_info.last_error == ESP_OK;
+        return s_info.last_error;
+    }
     uint8_t id[6];
     esp_err_t error=read_register(GT9271_PRODUCT_ID_REG,id,sizeof(id));
     if (error==ESP_OK && memcmp(id,"9271",4)) error=ESP_ERR_INVALID_RESPONSE;
@@ -125,20 +132,30 @@ esp_err_t kmyc_touch_reprobe(void)
     if (error==ESP_OK) {
         memcpy(s_info.product_id,id,4); s_info.product_id[4]=0;
         s_info.firmware_version=id[4]|((uint16_t)id[5]<<8);
+        s_info.asleep = false;
     }
     return error;
 }
 
-esp_err_t kmyc_touch_enter_sleep(void) { return ESP_ERR_NOT_SUPPORTED; }
+esp_err_t kmyc_touch_enter_sleep(void)
+{
+    if (!s_device || !s_info.available) return ESP_ERR_INVALID_STATE;
+    esp_err_t error = write_u8(0x8040, 0x05);
+    s_info.last_error = error;
+    if (error == ESP_OK) s_info.asleep = true;
+    return error;
+}
 
 void kmyc_touch_notify_wake_signal_complete(void)
 {
-    /* This driver does not enter sleep; no GT911-specific wake command here. */
+    /* The host completed INT wake and released the line; identity is not yet
+     * confirmed. Permit bounded reprobe and future polling even if it fails. */
     s_info.asleep = false;
 }
 
 esp_err_t kmyc_touch_read(kmyc_touch_report_t *report, bool *updated)
 {
+    if (s_info.asleep) return ESP_ERR_INVALID_STATE;
     ESP_RETURN_ON_FALSE(s_device != NULL, ESP_ERR_INVALID_STATE, TAG,
                         "touch is not initialized");
     ESP_RETURN_ON_FALSE(report != NULL && updated != NULL, ESP_ERR_INVALID_ARG, TAG,
@@ -154,7 +171,7 @@ esp_err_t kmyc_touch_read(kmyc_touch_report_t *report, bool *updated)
     }
 
     const uint8_t count = status & 0x0FU;
-    if (count > KMYC_TOUCH_MAX_POINTS) {
+    if (count > 5 || count > KMYC_TOUCH_MAX_POINTS) {
         ESP_RETURN_ON_ERROR(write_u8(GT9271_REPORT_STATUS_REG, 0), TAG,
                             "failed to clear invalid touch report");
         return ESP_ERR_INVALID_RESPONSE;

@@ -5,7 +5,7 @@
 
 #include "esp_err.h"
 
-#define KMYC_TOUCH_MAX_POINTS 5
+#define KMYC_TOUCH_MAX_POINTS 10
 
 typedef struct {
     uint8_t id;
@@ -23,8 +23,10 @@ esp_err_t kmyc_touch_start(void);
 esp_err_t kmyc_touch_read(kmyc_touch_report_t *report, bool *updated);
 
 typedef struct {
+    const char *model;
+    const char *controller;
     char product_id[5];
-    uint16_t firmware_version;
+    uint32_t firmware_version;
     uint8_t address;
     bool available;
     bool asleep;
@@ -34,7 +36,8 @@ typedef struct {
 const kmyc_touch_info_t *kmyc_touch_get_info(void);
 /* One app task owns read/lifecycle calls. No configuration firmware writes. */
 esp_err_t kmyc_touch_reprobe(void);
-esp_err_t kmyc_touch_enter_sleep(void); /* caller owns INT sequencing */
+/* Caller owns INT sequencing and the product-specific minimum sleep interval. */
+esp_err_t kmyc_touch_enter_sleep(void);
 /* Host has completed the wake signal and released INT. Allow bus access again;
  * this is not proof of device readiness or identity and performs no I2C access. */
 void kmyc_touch_notify_wake_signal_complete(void);

@@ -138,6 +138,8 @@ static const kmyc_display_info_t s_info = {
     .width = KMYC_PANEL_H_RES,
     .height = KMYC_PANEL_V_RES,
     .active_lanes = KMYC_ADAPTER_DSI_LANE_NUM,
+    .lane_bit_rate_mbps = KMYC_ADAPTER_LANE_BITRATE_MBPS,
+    .pixel_clock_mhz = KMYC_PANEL_DPI_CLOCK_MHZ,
     .nominal_refresh_hz =
         (KMYC_PANEL_DPI_CLOCK_MHZ * 1000000.0) /
         ((KMYC_PANEL_H_RES + KMYC_PANEL_HSYNC + KMYC_PANEL_HBP + KMYC_PANEL_HFP) *

@@ -5,6 +5,6 @@
   "assemblies": [], "touches": ["KMYC-T070-CTP-I2C-GT911-G01-A1"],
   "capabilities": ["dsi-pattern", "rgb888-draw", "touch-poll", "controller-lifecycle"],
   "physical_adapter_model": "mipi-bridge-31pin-to-15pin-22pin-v12",
-  "sources": ["../common/dsi2_diagnostic.c", "bridge.c"],
-  "include_dirs": ["."], "touch_include_dirs": ["."]
+  "sources": ["../common/dsi2_diagnostic.c", "../common/bridge_v12.c"],
+  "include_dirs": [".", "../common"], "touch_include_dirs": ["."]
 }

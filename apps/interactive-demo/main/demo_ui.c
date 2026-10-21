@@ -9,10 +9,11 @@
 #include "kmyc_display.h"
 #include "demo_service.h"
 #include "demo_ui.h"
+#include "demo_geometry.h"
 
 static const char *TAG = "demo_ui";
 static lv_obj_t *s_system, *s_descriptor, *s_lifecycle, *s_touch_label, *s_duty_label;
-static lv_obj_t *s_preview, *s_touch_area, *s_points[5], *s_targets[5];
+static lv_obj_t *s_preview, *s_touch_area, *s_points[KMYC_TOUCH_MAX_POINTS], *s_targets[5];
 static kmyc_touch_report_t s_report;
 static uint32_t s_multi_reports, s_edge_reports, s_target_hits, s_max_contacts;
 static bool s_target_seen[5];
@@ -131,10 +132,15 @@ static void brightness(lv_event_t *event)
     lv_label_set_text_fmt(s_duty_label, "%d%% / requested raw duty %u (queued)", percent, duty);
 }
 
-static void pattern(lv_event_t *event)
+static void render_pattern(unsigned kind)
 {
-    unsigned kind = (unsigned)(uintptr_t)lv_event_get_user_data(event);
     lv_obj_clean(s_preview);
+    lv_obj_update_layout(s_preview);
+    int width = lv_obj_get_content_width(s_preview);
+    int height = lv_obj_get_content_height(s_preview);
+    if (width < 8 || height < 4) {
+        return;
+    }
     static const uint32_t colors[] = {0xffffff, 0xffff00, 0x00ffff, 0x00ff00,
                                       0xff00ff, 0xff0000, 0x0000ff, 0};
     for (unsigned y = 0; y < 4; y++) {
@@ -152,16 +158,29 @@ static void pattern(lv_event_t *event)
             }
             lv_obj_t *tile = lv_obj_create(s_preview);
             lv_obj_remove_style_all(tile);
-            lv_obj_set_pos(tile, x * 112, y * 45);
-            lv_obj_set_size(tile, kind == 3 ? 110 : 112, kind == 3 ? 43 : 45);
+            int x1 = x * width / 8;
+            int y1 = y * height / 4;
+            int x2 = (x + 1) * width / 8;
+            int y2 = (y + 1) * height / 4;
+            int gap = kind == 3 ? 1 : 0;
+            lv_obj_set_pos(tile, x1, y1);
+            lv_obj_set_size(tile, x2 - x1 - gap, y2 - y1 - gap);
             lv_obj_set_style_bg_color(tile, lv_color_hex(color), 0);
             lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
         }
     }
 }
 
+static void pattern(lv_event_t *event)
+{
+    render_pattern((unsigned)(uintptr_t)lv_event_get_user_data(event));
+}
+
 static void build_ui(void)
 {
+    const kmyc_display_info_t *display = kmyc_display_get_info();
+    const kmyc_touch_info_t *touch = &s_ui_model.touch;
+    const kmyc_adapter_info_t *adapter = &s_ui_model.adapter;
     lv_obj_t *tabs = lv_tabview_create(lv_screen_active());
     s_tabs = tabs;
     const char *names[] = {"System", "Display", "Touch", "Lifecycle"};
@@ -170,14 +189,16 @@ static void build_ui(void)
         pages[i] = lv_tabview_add_tab(tabs, names[i]);
         lv_obj_set_flex_flow(pages[i], LV_FLEX_FLOW_COLUMN);
     }
-    label(pages[0], "WT9932P4-TINY V1.2 / integration under test\n"
-                    "Display KMYC-D070-DSI4L-1024X600-A1\n"
-                    "Touch KMYC-T070-CTP-I2C-GT911-G01-A1\n"
-                    "Adapter wireless-tiny-d070-bridge-v12-dsi2");
+    lv_label_set_text_fmt(label(pages[0], ""),
+                          "%s / integration under test\nDisplay %s\nTouch %s\nAdapter %s",
+                          adapter->board_model, display->model, touch->model, adapter->model);
     s_system = label(pages[0], "Reading controller...");
-    s_descriptor = label(pages[0], "Preset: D070 1024x600 / GT911 / 2 DSI lanes");
-    label(pages[1], "1024x600 / RGB888 / 2 lanes / 750 Mbps per lane / DPI 51 MHz\n"
-                    "LVGL pattern previews; color and geometry require physical verification.");
+    s_descriptor = label(pages[0], "Reading descriptor; compiled preset is authoritative");
+    lv_label_set_text_fmt(label(pages[1], ""),
+                          "%dx%d / RGB888 / %d lanes / %d Mbps per lane / DPI %d MHz\n"
+                          "LVGL pattern previews; verify color and geometry on the hardware.",
+                          display->width, display->height, display->active_lanes,
+                          display->lane_bit_rate_mbps, display->pixel_clock_mhz);
     lv_obj_t *patterns = row(pages[1]);
     const char *pattern_names[] = {"RGB bars", "Gray ramp", "Checker", "Grid"};
     for (unsigned i = 0; i < 4; i++) {
@@ -187,11 +208,11 @@ static void build_ui(void)
         lv_obj_add_event_cb(obj, pattern, LV_EVENT_CLICKED, (void *)(uintptr_t)i);
     }
     s_preview = lv_obj_create(pages[1]);
-    lv_obj_set_size(s_preview, 900, 184);
+    lv_obj_set_size(s_preview, LV_PCT(100), display->height / 3);
     lv_obj_set_style_pad_all(s_preview, 0, 0);
     lv_obj_remove_flag(s_preview, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *slider = lv_slider_create(pages[1]);
-    lv_obj_set_width(slider, 800);
+    lv_obj_set_width(slider, LV_PCT(95));
     lv_slider_set_range(slider, 0, 100);
     lv_slider_set_value(slider, 60, LV_ANIM_OFF);
     lv_obj_add_event_cb(slider, brightness, LV_EVENT_VALUE_CHANGED, NULL);
@@ -207,26 +228,41 @@ static void build_ui(void)
     button(display_row, "Wake", 2, true);
     s_touch_label = label(pages[2], "Touch polling 20 ms; unavailable touch does not stop display");
     lv_obj_t *touch_row = row(pages[2]);
-    button(touch_row, "Reset GT911", 3, true);
-    button(touch_row, "Reprobe", 4, false);
+    lv_obj_t *reset_touch = button(touch_row, "Reset touch", 3, s_ui_model.touch_enabled);
+    lv_obj_t *reprobe_touch = button(touch_row, "Reprobe", 4, false);
+    if (!s_ui_model.touch_enabled) {
+        lv_label_set_text(s_touch_label, "Touch is not enabled in this preset.");
+        lv_obj_add_state(reset_touch, LV_STATE_DISABLED);
+        lv_obj_add_state(reprobe_touch, LV_STATE_DISABLED);
+    }
     s_touch_area = lv_obj_create(pages[2]);
-    lv_obj_set_size(s_touch_area, 900, 260);
+    lv_obj_set_size(s_touch_area, LV_PCT(100), display->height / 2);
     lv_obj_remove_flag(s_touch_area, LV_OBJ_FLAG_SCROLLABLE);
+    const lv_align_t target_alignments[] = {
+        LV_ALIGN_TOP_LEFT, LV_ALIGN_TOP_RIGHT, LV_ALIGN_BOTTOM_LEFT,
+        LV_ALIGN_BOTTOM_RIGHT, LV_ALIGN_CENTER,
+    };
     for (unsigned i = 0; i < 5; i++) {
         s_targets[i] = lv_obj_create(s_touch_area);
         lv_obj_set_size(s_targets[i], 30, 30);
-        lv_obj_set_pos(s_targets[i], i == 4 ? 420 : (i & 1 ? 810 : 20),
-                       i == 4 ? 100 : (i & 2 ? 190 : 10));
+        lv_obj_align(s_targets[i], target_alignments[i], 0, 0);
         lv_obj_set_style_radius(s_targets[i], LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_color(s_targets[i], lv_color_hex(0x505050), 0);
+    }
+    static const uint32_t contact_colors[] = {
+        0xff4020, 0x20c060, 0x4090ff, 0xffc020, 0xd050ff,
+        0x20d0d0, 0xff80a0, 0x90c020, 0xb08050, 0xa0a0ff,
+    };
+    for (unsigned i = 0; i < KMYC_TOUCH_MAX_POINTS; i++) {
         s_points[i] = lv_obj_create(s_touch_area);
         lv_obj_set_size(s_points[i], 12, 12);
         lv_obj_align(s_points[i], LV_ALIGN_TOP_LEFT, 0, 0);
-        lv_obj_set_style_bg_color(s_points[i], lv_color_hex(0xff4020), 0);
+        lv_obj_set_style_bg_color(s_points[i], lv_color_hex(contact_colors[i % 10]), 0);
+        lv_obj_remove_flag(s_points[i], LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_flag(s_points[i], LV_OBJ_FLAG_HIDDEN);
     }
     label(pages[3],
-          "Startup stages: shared bus / probe ABI / PWM0 / LCD reset / GT911 address reset");
+          "Startup stages: shared bus / probe ABI / PWM0 / LCD reset / touch address reset");
     s_lifecycle = label(pages[3], "Starting...");
     lv_obj_t *life_row = row(pages[3]);
     button(life_row, "Clear diagnostics", 5, true);
@@ -234,6 +270,12 @@ static void build_ui(void)
     button(life_row, "Restart P4", 6, false);
     label(pages[3], "No descriptor writes. Never hot-plug display/touch FFCs. Controller loss "
                     "holds last output.");
+    if (!s_ui_model.touch_enabled) {
+        label(pages[1], "Display-only demo: patterns advance every 5 seconds. Touch disabled.");
+        lv_tabview_set_active(tabs, 1, LV_ANIM_OFF);
+        lv_obj_update_layout(tabs);
+        render_pattern(0);
+    }
 }
 
 static void poll_touch(void)
@@ -252,9 +294,10 @@ static void poll_touch(void)
         s_multi_reports++;
     }
     if (updated) {
+        const kmyc_display_info_t *display = kmyc_display_get_info();
         for (unsigned i = 0; i < report.count; i++) {
-            if (report.points[i].x < 20 || report.points[i].x > 1003 || report.points[i].y < 20 ||
-                report.points[i].y > 579) {
+            if (demo_point_is_edge(report.points[i].x, report.points[i].y,
+                                   display->width, display->height)) {
                 s_edge_reports++;
             }
             for (unsigned target = 0; target < 5 && lv_tabview_get_tab_active(s_tabs) == 2;
@@ -263,7 +306,8 @@ static void poll_touch(void)
                 lv_obj_get_coords(s_targets[target], &area);
                 int dx = (int)report.points[i].x - (area.x1 + area.x2) / 2;
                 int dy = (int)report.points[i].y - (area.y1 + area.y2) / 2;
-                if (!s_target_seen[target] && dx * dx + dy * dy < 900) {
+                int hit_radius = lv_obj_get_width(s_targets[target]);
+                if (!s_target_seen[target] && dx * dx + dy * dy < hit_radius * hit_radius) {
                     s_target_seen[target] = true;
                     s_target_hits++;
                     lv_obj_set_style_bg_color(s_targets[target], lv_color_hex(0x30b050), 0);
@@ -273,7 +317,7 @@ static void poll_touch(void)
     }
     lv_area_t content;
     lv_obj_get_content_coords(s_touch_area, &content);
-    for (unsigned i = 0; i < 5; i++) {
+    for (unsigned i = 0; i < KMYC_TOUCH_MAX_POINTS; i++) {
         bool inside = i < s_report.count && s_report.points[i].x >= content.x1 &&
                       s_report.points[i].x <= content.x2 && s_report.points[i].y >= content.y1 &&
                       s_report.points[i].y <= content.y2;
@@ -290,17 +334,17 @@ static void poll_touch(void)
         }
     }
     const kmyc_touch_info_t *touch = &s_ui_model.touch;
-    char points[280] = {0};
+    char points[560] = {0};
     size_t offset = 0;
-    for (unsigned i = 0; i < s_report.count && i < 5; i++) {
+    for (unsigned i = 0; i < s_report.count && i < KMYC_TOUCH_MAX_POINTS; i++) {
         offset += snprintf(points + offset, sizeof(points) - offset, "id%u x%u y%u strength%u  ",
                            s_report.points[i].id, s_report.points[i].x, s_report.points[i].y,
                            s_report.points[i].strength);
     }
     lv_label_set_text_fmt(
         s_touch_label,
-        "GT%s @0x%02x FW0x%04x  points %u/max%lu  targets %lu/5  edge %lu  multi %lu\n%s",
-        touch->product_id, touch->address, touch->firmware_version, s_report.count,
+        "%s @0x%02x FW0x%06lx  points %u/max%lu  targets %lu/5  edge %lu  multi %lu\n%s",
+        touch->controller, touch->address, (unsigned long)touch->firmware_version, s_report.count,
         (unsigned long)s_max_contacts, (unsigned long)s_target_hits, (unsigned long)s_edge_reports,
         (unsigned long)s_multi_reports, points);
 }
@@ -322,14 +366,23 @@ static void lvgl_task(void *context)
     lv_init();
     /* Keep objects in LVGL's configured allocator. Only draw buffers require
      * PSRAM; an arbitrary extra pool can exceed the built-in TLSF pool limit. */
-    lv_display_t *display = lv_display_create(1024, 600);
-    const size_t bytes = 1024 * 40 * 3;
+    const kmyc_display_info_t *info = kmyc_display_get_info();
+    size_t bytes;
+    if (!demo_buffer_size(info->width, info->height, &bytes)) {
+        ESP_LOGE(TAG, "Invalid display dimensions or RGB888 buffer size overflow");
+        vTaskDelete(NULL);
+        return;
+    }
+    lv_display_t *display = lv_display_create(info->width, info->height);
     void *buf1 = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     void *buf2 = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!buf1 || !buf2 || !display) {
         ESP_LOGE(TAG, "LVGL allocation failed");
         free(buf1);
         free(buf2);
+        if (display) {
+            lv_display_delete(display);
+        }
         vTaskDelete(NULL);
         return;
     }
@@ -338,9 +391,11 @@ static void lvgl_task(void *context)
     lv_display_set_flush_cb(display, flush);
     lv_display_set_flush_wait_cb(display, flush_wait);
     ESP_ERROR_CHECK(kmyc_display_set_flush_done_callback(flush_done, NULL));
-    lv_indev_t *input = lv_indev_create();
-    lv_indev_set_type(input, LV_INDEV_TYPE_POINTER);
-    lv_indev_set_read_cb(input, pointer_read);
+    if (s_ui_model.touch_enabled) {
+        lv_indev_t *input = lv_indev_create();
+        lv_indev_set_type(input, LV_INDEV_TYPE_POINTER);
+        lv_indev_set_read_cb(input, pointer_read);
+    }
     const esp_timer_create_args_t timer_args = {.callback = tick, .name = "lvgl_tick"};
     esp_timer_handle_t timer;
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &timer));
@@ -351,6 +406,8 @@ static void lvgl_task(void *context)
     ESP_LOGI(TAG, "LVGL UI ready; two %u-byte PSRAM draw buffers; object heap free %u bytes",
              (unsigned)bytes, (unsigned)memory.free_size);
     int64_t touch_at = 0, status_at = 0;
+    int64_t preview_at = esp_timer_get_time() + 5000000;
+    unsigned preview_kind = 0;
     for (;;) {
         int64_t now = esp_timer_get_time();
         bool was_asleep = s_ui_model.asleep;
@@ -358,7 +415,14 @@ static void lvgl_task(void *context)
         if (was_asleep && !s_ui_model.asleep) {
             lv_obj_invalidate(lv_screen_active());
         }
-        if (now >= touch_at) {
+        if (!s_ui_model.touch_enabled && !s_ui_model.asleep && now >= preview_at) {
+            preview_kind = (preview_kind + 1) % 4;
+            render_pattern(preview_kind);
+            ESP_LOGI(TAG, "Display-only preview %u; flush errors %lu",
+                     preview_kind, (unsigned long)s_flush_errors);
+            preview_at = now + 5000000;
+        }
+        if (s_ui_model.touch_enabled && now >= touch_at) {
             poll_touch();
             touch_at = now + 20000;
         }

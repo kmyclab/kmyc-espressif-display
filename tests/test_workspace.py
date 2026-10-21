@@ -22,6 +22,43 @@ WIRELESS_D070_TOUCH_PRESET = "wireless-p4-d070-touch"
 
 
 class WorkspaceTests(unittest.TestCase):
+    def test_d101_bridge_demo_reuses_products_and_host_profile(self):
+        data = kmyc.catalog(ROOT)
+        selected = kmyc.resolve(data, data["preset"]["wireless-p4-d101-bridge-v12-demo"])
+        self.assertEqual(selected["app"]["id"], "interactive-demo")
+        self.assertEqual(selected["touch"]["controller"], "GT9271")
+        self.assertEqual(selected["display"]["controller"], "ILI9881C")
+        self.assertEqual(selected["adapter"]["mode"], "dsi2-1000mbps-71mhz")
+        wiring = (selected["adapter"]["_path"].parent / "wiring.h").read_text()
+        self.assertIn("KMYC_ADAPTER_LANE_BITRATE_MBPS 1000", wiring)
+        self.assertEqual(data["adapter"]["wireless-tiny-d101-dsi2"]["mode"],
+                         "dsi2-800mbps-71mhz")
+        self.assertEqual(selected["assembly"]["touch"], selected["touch"]["model"])
+        for name in ("d070", "d101"):
+            selected = kmyc.resolve(data, data["preset"][f"wireless-p4-{name}-bridge-v12-demo"])
+            adapter_dir = selected["adapter"]["_path"].parent
+            profile = (adapter_dir / "bridge_profile.h").read_text()
+            self.assertIn(f'KMYC_BRIDGE_ADAPTER_ID "{selected["adapter"]["id"]}"', profile)
+            self.assertIn(f'KMYC_BRIDGE_DISPLAY_ID "{selected["display"]["model"]}"', profile)
+            self.assertIn(f'KMYC_BRIDGE_TOUCH_ID "{selected["touch"]["model"]}"', profile)
+            self.assertIn("../common/bridge_v12.c", selected["adapter"]["sources"])
+        common = (ROOT / "platforms/esp32p4/adapters/common/bridge_v12.c").read_text()
+        self.assertIn("expected_display = KMYC_BRIDGE_DISPLAY_ID", common)
+        self.assertIn("expected_touch = KMYC_BRIDGE_TOUCH_ID", common)
+        self.assertNotIn("KMYC-D070", common)
+
+    def test_interactive_ui_is_display_size_independent(self):
+        ui = (ROOT / "apps/interactive-demo/main/demo_ui.c").read_text()
+        for obsolete in ("GT911", "1024", "600", "1003", "579", "KMYC-D070", "KMYC-T070"):
+            self.assertNotIn(obsolete, ui)
+        self.assertIn("lv_display_create(info->width, info->height)", ui)
+        self.assertIn("demo_buffer_size(info->width, info->height, &bytes)", ui)
+        self.assertIn("lv_obj_get_content_width(s_preview)", ui)
+        self.assertIn("LV_ALIGN_BOTTOM_RIGHT", ui)
+        self.assertIn("demo_point_is_edge", ui)
+        self.assertIn("touch->model", ui)
+        self.assertIn("adapter->model", ui)
+
     def test_bridge_demo_uses_its_own_adapter_and_controller_capability(self):
         data = kmyc.catalog(ROOT)
         preset = data["preset"]["wireless-p4-d070-bridge-v12-demo"]
@@ -42,6 +79,11 @@ class WorkspaceTests(unittest.TestCase):
             self.assertNotIn("controller-lifecycle", selected["adapter"]["capabilities"])
         manifest = (ROOT / "apps/interactive-demo/main/idf_component.yml").read_text()
         self.assertIn('lvgl/lvgl: "==9.2.2"', manifest)
+        self.assertIn('espressif/esp_lcd_ili9881c: "==1.1.0"', manifest)
+        lock = (ROOT / "apps/interactive-demo/dependencies.lock").read_text()
+        self.assertIn("espressif/esp_lcd_ili9881c:", lock)
+        self.assertIn("version: 1.1.0", lock)
+        self.assertIn("version: 9.2.2", lock)
 
     def test_shared_bus_pins_preserve_board_recipes(self):
         for board in ("wireless/wt9932p4-tiny-v1.2", "waveshare/esp32-p4-pico"):

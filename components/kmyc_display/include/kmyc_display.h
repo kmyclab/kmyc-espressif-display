@@ -14,6 +14,8 @@ typedef struct {
     int width;
     int height;
     int active_lanes;
+    int lane_bit_rate_mbps;
+    int pixel_clock_mhz;
     double nominal_refresh_hz;
 } kmyc_display_info_t;
 

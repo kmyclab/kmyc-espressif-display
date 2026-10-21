@@ -21,7 +21,10 @@
 static const char *TAG = "gt911";
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_device;
-static kmyc_touch_info_t s_info;
+static kmyc_touch_info_t s_info = {
+    .model = "KMYC-T070-CTP-I2C-GT911-G01-A1",
+    .controller = "GT911",
+};
 
 static esp_err_t read_register(uint16_t reg, uint8_t *data, size_t size)
 {
@@ -174,7 +177,7 @@ esp_err_t kmyc_touch_read(kmyc_touch_report_t *report, bool *updated)
     }
 
     const uint8_t count = status & 0x0FU;
-    if (count > KMYC_TOUCH_MAX_POINTS) {
+    if (count > 5 || count > KMYC_TOUCH_MAX_POINTS) {
         ESP_RETURN_ON_ERROR(write_u8(GT911_REPORT_STATUS_REG, 0), TAG,
                             "failed to clear invalid touch report");
         return ESP_ERR_INVALID_RESPONSE;

@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <string.h>
 #include "bridge.h"
+#include "bridge_profile.h"
 #include "kmyc_controller.h"
 #include "kmyc_i2c.h"
 #include "kmyc_touch.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -13,7 +15,11 @@ static const char *TAG = "bridge_v12";
 static i2c_master_dev_handle_t s_device;
 static SemaphoreHandle_t s_lock;
 static kmyc_controller_t s_client;
-static kmyc_adapter_info_t s_info;
+static kmyc_adapter_info_t s_info = {
+    .model = KMYC_BRIDGE_ADAPTER_ID,
+    .board_model = KMYC_BRIDGE_BOARD_NAME,
+};
+static int64_t s_sleep_command_at = -1;
 
 static int transport_read(void *ctx, uint8_t reg, uint8_t *data, size_t length)
 {
@@ -117,8 +123,8 @@ static void read_descriptor(void)
                  "Descriptor invalid/unreadable (%d). Preset remains authoritative.", error);
         return;
     }
-    const char *expected_display = "KMYC-D070-DSI4L-1024X600-A1";
-    const char *expected_touch = "KMYC-T070-CTP-I2C-GT911-G01-A1";
+    const char *expected_display = KMYC_BRIDGE_DISPLAY_ID;
+    const char *expected_touch = KMYC_BRIDGE_TOUCH_ID;
     bool display_match = false, touch_match = false;
     size_t cursor = 0, written = 0;
     kmyc_controller_tlv_t tlv;
@@ -166,14 +172,15 @@ esp_err_t kmyc_bridge_brightness(uint8_t duty)
 
 static esp_err_t touch_reset_sequence(void)
 {
-    /* Host-specific GT911 0x5D selection; never encoded inside MCU firmware. */
+    /* Goodix host profile selects 0x5D with INT low at the RST rising edge.
+     * Product timings belong here, never in the universal MCU firmware. */
     esp_err_t error = apply(6,0,6,0x14,false,0);
     if (error != ESP_OK) return error;
-    vTaskDelay(pdMS_TO_TICKS(10)); /* INT low >100us before rising RST. */
+    vTaskDelay(pdMS_TO_TICKS(KMYC_BRIDGE_TOUCH_RESET_LOW_MS));
     if ((error = apply(2,2,0,0,false,0)) != ESP_OK) return error;
-    vTaskDelay(pdMS_TO_TICKS(5));
+    vTaskDelay(pdMS_TO_TICKS(KMYC_BRIDGE_TOUCH_RESET_HIGH_MS));
     if ((error = apply(0,0,4,0,false,0)) != ESP_OK) return error;
-    vTaskDelay(pdMS_TO_TICKS(195)); /* total 200ms after RST high */
+    vTaskDelay(pdMS_TO_TICKS(KMYC_BRIDGE_TOUCH_RESET_READY_MS));
     return ESP_OK; /* TP_RST remains PP high; TP_INT input/no-pull. */
 }
 
@@ -207,7 +214,7 @@ esp_err_t kmyc_bridge_prepare(void)
     s_info.controller_compatible = !result && kmyc_controller_is_supported(&info, 7);
     s_info.controller_online = s_info.controller_compatible;
     if (!s_info.controller_compatible) {
-        snprintf(s_info.system, sizeof(s_info.system), "Controller unavailable/incompatible (%d).\nDegraded: DCS reset + direct GT911; controller controls disabled.", result);
+        snprintf(s_info.system, sizeof(s_info.system), "Controller unavailable/incompatible (%d).\nDegraded: DCS reset + direct %s; controller controls disabled.", result, KMYC_BRIDGE_TOUCH_CONTROLLER);
         snprintf(s_info.lifecycle, sizeof(s_info.lifecycle), "Fallback: no controller control frames");
         ESP_LOGW(TAG, "%s", s_info.system);
         return ESP_OK; /* Incompatible controller receives no control writes. */
@@ -217,15 +224,15 @@ esp_err_t kmyc_bridge_prepare(void)
     if ((error = kmyc_bridge_brightness(0)) != ESP_OK) return error;
     s_info.completed_stages |= 4;
     if ((error = apply(1,0,1,1,false,0)) != ESP_OK) return error;
-    vTaskDelay(pdMS_TO_TICKS(20));
+    vTaskDelay(pdMS_TO_TICKS(KMYC_BRIDGE_LCD_RESET_LOW_MS));
     if ((error = apply(1,1,0,0,false,0)) != ESP_OK) return error;
     if ((error = apply(0,0,1,0,false,0)) != ESP_OK) return error;
-    vTaskDelay(pdMS_TO_TICKS(120));
+    vTaskDelay(pdMS_TO_TICKS(KMYC_BRIDGE_LCD_RESET_READY_MS));
     s_info.completed_stages |= 8;
     if ((error = touch_reset_sequence()) != ESP_OK) return error;
     s_info.completed_stages |= 16;
     kmyc_adapter_refresh();
-    return record(0, "controller/LCD/GT911 prepared");
+    return record(0, "controller/LCD/Goodix prepared");
 }
 
 esp_err_t kmyc_bridge_touch_sleep(void)
@@ -238,6 +245,9 @@ esp_err_t kmyc_bridge_touch_sleep(void)
     /* At least 5ms before the command; one extra tick covers tick-phase loss. */
     vTaskDelay(pdMS_TO_TICKS(5) + 1);
     error = kmyc_touch_enter_sleep();
+    /* Conservatively cover even an ambiguous command failure. This timestamp
+     * follows the I2C attempt, so the minimum interval cannot start too early. */
+    s_sleep_command_at = esp_timer_get_time();
     esp_err_t release = apply(0, 0, 4, 0, false, 0);
     ESP_LOGI(TAG, "Touch sleep command=%s INT release=%s asleep=%u",
              esp_err_to_name(error), esp_err_to_name(release), kmyc_touch_get_info()->asleep);
@@ -246,18 +256,27 @@ esp_err_t kmyc_bridge_touch_sleep(void)
 
 esp_err_t kmyc_bridge_touch_wake(void)
 {
+    if (s_sleep_command_at >= 0) {
+        int64_t remaining = KMYC_BRIDGE_TOUCH_SLEEP_MIN_MS * 1000LL -
+                            (esp_timer_get_time() - s_sleep_command_at);
+        if (remaining > 0) {
+            vTaskDelay(pdMS_TO_TICKS((remaining + 999) / 1000) + 1);
+        }
+    }
     esp_err_t error = apply(4, 4, 4, 0x10, false, 0);
     if (error != ESP_OK) {
         ESP_LOGE(TAG, "Touch wake INT-high failed: %s", esp_err_to_name(error));
         return error;
     }
-    vTaskDelay(pdMS_TO_TICKS(3));
+    vTaskDelay(pdMS_TO_TICKS(KMYC_BRIDGE_TOUCH_WAKE_HIGH_MS));
     error = apply(0, 0, 4, 0, false, 0);
-    ESP_LOGI(TAG, "Touch wake high-3ms pulse complete; INT release=%s", esp_err_to_name(error));
+    ESP_LOGI(TAG, "Touch wake high-%ums pulse complete; INT release=%s",
+             (unsigned)KMYC_BRIDGE_TOUCH_WAKE_HIGH_MS, esp_err_to_name(error));
     if (error != ESP_OK) {
         return record(error, "touch wake INT release");
     }
     kmyc_touch_notify_wake_signal_complete();
+    s_sleep_command_at = -1; /* This wake signal completed; failures above retain the guard. */
     /* Readiness margin after releasing INT, not an extra pin pulse or a
      * datasheet-mandated delay. A failed identity read must not latch sleep. */
     vTaskDelay(pdMS_TO_TICKS(5));

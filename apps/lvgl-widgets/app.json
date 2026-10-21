@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "kind": "app",
+  "id": "lvgl-widgets",
+  "targets": ["esp32p4"],
+  "requires": ["rgb888-draw", "touch-poll", "controller-lifecycle"],
+  "default_preset": "wireless-p4-d101-bridge-v12-widgets"
+}

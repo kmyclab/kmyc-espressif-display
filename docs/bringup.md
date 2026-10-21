@@ -63,6 +63,11 @@ Bridge V1.2 已完成启动、亮度、触摸、一次 sleep/wake 和触点标�
 内部夹具接线。连接或更换硬件前仍必须断电确认 D070/GT911、adapter 版本、供电和
 共地，再按[应用说明](../apps/interactive-demo/README.md)检查、构建和烧录。
 
+10.1 寸 DT101/GT9271 + Bridge V1.2 使用独立的
+`wireless-p4-d101-bridge-v12-demo`，复用同一应用但采用 800×1280 竖屏和独立触控
+时序。此新组合仍待实机验证。不要使用 D070 的固件或接线结论替代型号确认；
+更换前必须断电，确认总成、转接板、供电和串口后再进行硬件操作。
+
 | 目的 | 推荐 preset（ESP32-P4 v1.x） |
 | --- | --- |
 | 10.1 寸 MIPI-DSI 视频链路 | `waveshare-pico-r1-d101-panel` |

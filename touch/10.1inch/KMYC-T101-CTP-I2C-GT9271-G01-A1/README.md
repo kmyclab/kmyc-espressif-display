@@ -12,6 +12,11 @@
 ESP-IDF 驱动支持 `0x5D`、`0x14` 地址探测和五点触控报告。实际 I2C 引脚、
 RESET/INT 和坐标方向由所选开发板 Adapter 决定。
 
+驱动提供 `0x8040=0x05` sleep 命令和本地休眠状态。调用方必须先处理 INT，
+并确保 sleep 命令到唤醒信号间隔大于58ms；Bridge V1.2 主机 profile 使用至少59ms。
+主机完成唤醒信号并释放 INT 后，通知驱动恢复总线访问，再以有界身份读取确认在线；
+该通知本身不代表 GT9271 已就绪。未验证的其他 Adapter 不应自行套用 INT 时序。
+
 Waveshare ESP32-P4-Pico 当前使用 GPIO8 SCL、GPIO7 SDA 和轮询模式，输出坐标
 映射为 800×1280。这些引脚仅属于该 Adapter，不是触摸产品的固定引脚。
 

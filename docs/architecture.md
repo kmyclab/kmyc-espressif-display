@@ -40,7 +40,8 @@ App 只调用公共显示/触摸接口。Adapter 提供 lane、GPIO、复位、�
 
 - `panel-test`：面板 BIST 和 ESP32-P4 硬件彩条。
 - `touch-test`：RGB888 测试画面、单点和多点触摸。
-- `interactive-demo`：LVGL 9.2.2、控制器状态、亮度、GT911 与休眠唤醒。
+- `interactive-demo`：共用 LVGL 9.2.2 界面、控制器状态、亮度、GT911/GT9271 与休眠唤醒。
+- `lvgl-widgets`：LVGL 官方经典 Widgets Demo，独立入口和轻量显示/触摸连接层。
 
 其他 USB 副屏和生产应用也应建立独立 App，共用已有公共组件。这样客户
 拿到某个 App 时入口明确，不需要从一个大型 `main` 中关闭无关功能。
@@ -67,7 +68,10 @@ App 只调用公共显示/触摸接口。Adapter 提供 lane、GPIO、复位、�
 公共接口覆盖显示初始化、RGB888 区域绘制和轮询触摸。新增 `kmyc_platform`
 由板级配置获取唯一 I²C bus，GT911/GT9271 和控制器均借用、不得自行删除。
 `kmyc_controller` 是不包含器件时序的纯 C 协议客户端，仅读描述和控制原语；
-V1.2 adapter 持有该实例及互斥，负责 LCD/GT911/PWM 的具体时序。
+V1.2 adapter 持有该实例及互斥，负责 LCD/触摸/PWM 的具体时序。
+公共 `adapters/common/bridge_v12.c` 负责 transport、状态、PWM 和描述读取；
+D070/D101 各自的 `bridge_profile.h` 提供产品身份与主机侧时序，不在 MCU 增加型号分支。
+同一交互 App 从 display/touch/adapter info 取得身份、分辨率和模式；布局不依赖某一屏幕尺寸。
 
 交互 App 的 service task 独占 I²C 与生命周期操作，LVGL task 只发 action queue
 并读取互斥保护的模型。默认两块 40 行 PSRAM 缓冲由 LVGL 管理；DPI

@@ -42,6 +42,11 @@ static const rgb888_t s_contact_colors[KMYC_TOUCH_MAX_POINTS] = {
     {255, 224, 48},
     {64, 255, 96},
     {224, 64, 255},
+    {255, 128, 48},
+    {48, 128, 255},
+    {255, 96, 160},
+    {144, 208, 48},
+    {176, 160, 255},
 };
 
 static const kmyc_display_info_t *s_display;

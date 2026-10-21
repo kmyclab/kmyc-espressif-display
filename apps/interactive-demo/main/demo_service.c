@@ -48,8 +48,15 @@ static void service_task(void *context)
         vTaskDelete(NULL);
         return;
     }
+#if KMYC_DEMO_TOUCH
+    model.touch_enabled = true;
     model.error = kmyc_touch_start();
     history(&model, "touch startup", model.error);
+#else
+    model.touch.model = "Not enabled in this preset";
+    model.touch.controller = "None";
+    ESP_LOGI(TAG, "Display-only preset: no touch driver or touch polling");
+#endif
     if (kmyc_adapter_get_info()->controller_online) {
         error = kmyc_display_set_brightness(60);
         if (error != ESP_OK) {
@@ -57,8 +64,11 @@ static void service_task(void *context)
         }
     }
     model.ready = true;
-    int64_t touch_at = 0, status_at = 0, brightness_at = 0;
+    int64_t status_at = 0, brightness_at = 0;
+#if KMYC_DEMO_TOUCH
+    int64_t touch_at = 0;
     esp_err_t last_touch_error = ESP_OK;
+#endif
     for (;;) {
         int64_t now = esp_timer_get_time();
         unsigned id;
@@ -77,11 +87,19 @@ static void service_task(void *context)
                 model.report.count = 0;
                 break;
             case 3:
+#if KMYC_DEMO_TOUCH
                 model.error = kmyc_adapter_touch_reset();
+#else
+                model.error = ESP_ERR_NOT_SUPPORTED;
+#endif
                 model.report.count = 0;
                 break;
             case 4:
+#if KMYC_DEMO_TOUCH
                 model.error = kmyc_touch_reprobe();
+#else
+                model.error = ESP_ERR_NOT_SUPPORTED;
+#endif
                 break;
             case 5:
                 model.error = kmyc_adapter_clear_diagnostics();
@@ -109,12 +127,14 @@ static void service_task(void *context)
             brightness_at = esp_timer_get_time() + 30000;
         }
         model.asleep = kmyc_display_is_asleep();
+#if KMYC_DEMO_TOUCH
         if (!model.asleep && now >= touch_at) {
             bool updated = false;
             kmyc_touch_report_t report;
             error = kmyc_touch_read(&report, &updated);
             if (error != last_touch_error) {
                 history(&model, "touch poll", error);
+                ESP_LOGI(TAG, "Touch polling: %s", esp_err_to_name(error));
             }
             last_touch_error = error;
             if (error != ESP_OK) {
@@ -126,12 +146,15 @@ static void service_task(void *context)
             }
             touch_at = esp_timer_get_time() + 20000;
         }
+#endif
         if (now >= status_at) {
             kmyc_adapter_refresh();
             status_at = esp_timer_get_time() + 1000000;
         }
         model.adapter = *kmyc_adapter_get_info();
+#if KMYC_DEMO_TOUCH
         model.touch = *kmyc_touch_get_info();
+#endif
         xSemaphoreTake(s_model_lock, portMAX_DELAY);
         s_model = model;
         xSemaphoreGive(s_model_lock);

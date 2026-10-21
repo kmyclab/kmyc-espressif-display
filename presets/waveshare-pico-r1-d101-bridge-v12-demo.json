@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "kind": "preset",
+  "id": "waveshare-pico-r1-d101-bridge-v12-demo",
+  "app": "interactive-demo",
+  "board": "waveshare-esp32-p4-pico",
+  "board_profile": "rev1_3",
+  "display": "KMYC-D101-DSI4L-800X1280-A1",
+  "assembly": "KMYC-DT101-DSI4L-800X1280-GT9271-OCA-G01-A1",
+  "adapter": "waveshare-pico-d101-bridge-v12-dsi2",
+  "idf": "5.5.3",
+  "sdkconfig_defaults": ["uart-console.defaults"],
+  "required_config": {
+    "CONFIG_ESP_CONSOLE_UART_DEFAULT": "y"
+  }
+}

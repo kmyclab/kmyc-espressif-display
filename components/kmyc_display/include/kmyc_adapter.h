@@ -4,6 +4,8 @@
 #include "esp_err.h"
 
 typedef struct {
+    const char *model;
+    const char *board_model;
     bool controller_present, controller_compatible, controller_online, descriptor_match;
     uint8_t consecutive_status_failures;
     uint32_t completed_stages;
@@ -15,7 +17,8 @@ typedef struct {
 } kmyc_adapter_info_t;
 
 /* These lifecycle APIs are implemented by the bridge-v1.2 recipe only.
- * One application task owns display, touch, adapter and LVGL operations. */
+ * One service task owns display lifecycle, touch and adapter operations;
+ * the separate UI task owns LVGL and display drawing. */
 const kmyc_adapter_info_t *kmyc_adapter_get_info(void);
 esp_err_t kmyc_adapter_refresh(void);
 esp_err_t kmyc_adapter_clear_diagnostics(void);
